@@ -17,7 +17,9 @@ Burbit is a prediction market for tokens that are still trading on bonding curve
 
 Users trade **YES** and **NO** shares on these questions through a **real central limit order book (CLOB)**. Every share pair is backed one-to-one by USDC locked in the market's vault. A winning share redeems for exactly $1.00. A losing share redeems for nothing.
 
-Burbit is not a launchpad and has no bonding curve of its own. Tokens launch, trade and graduate on existing launchpads. Burbit reads their public on-chain accounts, attaches yes/no conditions to each launch, validates every trade against the token's live curve state, and settles each market directly from that state. There is no data provider, no oracle committee, and no human resolver for the core market families. The answer is read from the chain in the same instruction that pays it out.
+**Burbit builds no bonding curve, no AMM, no pool and no launchpad, and never touches any of them.** Tokens launch, trade and graduate on existing launchpads; Burbit's entire relationship to that machinery is **reading its public on-chain state**. The curve exists in this documentation only because settling and pricing predictions requires understanding exactly how it behaves. Burbit reads each launchpad's public accounts, attaches yes/no conditions to each launch, validates every trade against the token's live curve state, and settles each market directly from that state. There is no data provider, no oracle committee, and no human resolver for the core market families. The answer is read from the chain in the same instruction that pays it out.
+
+Because integration is read-only, **Burbit can integrate any bonding-curve launchpad**: supporting a new one means writing one reader (a strict parser for that launchpad's public account layout, plus its progress and forcing-cost math) and registering it. No permission, partnership or contract call into the launchpad is ever needed, and nothing else in the protocol changes per venue.
 
 ## 2. What makes Burbit different
 

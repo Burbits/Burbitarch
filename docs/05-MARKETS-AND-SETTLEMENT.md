@@ -8,7 +8,9 @@ What Burbit lets people predict about bonding-curve tokens, how each question se
 
 A bonding-curve token's life is short, violent and fully on-chain: launch, a race up the curve, then either graduation to an open pool or death. Tens of thousands launch per day; only a fraction of a percent graduate, the median graduation takes minutes, creators are insiders in nearly every launch, and most graduated tokens collapse shortly after. There is nowhere to express a view on any of this except buying the token itself, which means taking the insiders' risk. Burbit turns each measurable, irreversible event in that lifecycle into a market.
 
-## 2. The first supported launchpad
+## 2. Launchpad integration is a reader, nothing more
+
+Burbit operates no curve and no AMM; it integrates a launchpad by shipping a **reader**: read-only code that parses that launchpad's public per-token account and implements four functions (parse and validate, curve progress, forcing cost, creator address). Any bonding-curve launchpad can be integrated this way, permissionlessly, because public account data is readable by anyone. Every reader rejects anything it does not exactly recognize, which routes layout changes into the void path instead of wrong settlements.
 
 The first reader targets the dominant Solana launchpad's public program. Facts the reader relies on, all from the launchpad's own published program documentation and IDL:
 

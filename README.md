@@ -4,6 +4,8 @@
 
 Burbit runs YES/NO markets on the lifecycle of freshly launched bonding-curve tokens: graduation, curve milestones, creator behavior, post-graduation crashes, races, and launchpad-wide aggregates. Trading happens on a real central limit order book with fully-collateralized $1.00 share pairs, and markets settle trustlessly by reading the launchpad's own on-chain accounts.
 
+Burbit builds no bonding curve and no AMM and is not a launchpad. It is a read-only prediction layer that can integrate **any** bonding-curve launchpad: supporting a new venue means adding one strict, read-only account parser, and nothing else changes.
+
 ## Documentation
 
 The complete build specification lives in [`docs/`](docs/), starting with the [overview and doc map](docs/00-OVERVIEW.md):
