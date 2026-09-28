@@ -287,11 +287,79 @@ Note the mids sum to $1.00, as they always must.
 
 Then nothing crosses. There is no price, no trade, and no loss: the orders rest, and at the halt every cent of escrow is returned. A market with only believers and no doubters simply never trades. This is a feature: **Burbit never manufactures a counterparty**, so nobody is ever filled against a price nobody was willing to take.
 
-## 6. Market makers: who they are and how they earn
+## 6. Maker, taker, market maker: who is who, and who gets paid
 
-You are right that prediction markets have market makers. Here is exactly who they are and what they do.
+### 6.1 The rule, in one question
 
-They are **independent participants using their own money**. Not the protocol, not Burbit, not a privileged role. Anyone can do it, including you, and Burbit ships an open-source reference quoter bot so anyone can run one.
+Maker and taker are decided **per fill**, by one question:
+
+> **Was your order already sitting on the book when the trade happened?**
+
+| | **Maker** | **Taker** |
+| --- | --- | --- |
+| Your order | Was **resting** on the book, waiting | **Arrived and crossed** immediately |
+| What you did | Supplied liquidity (someone could trade because you were there) | Consumed liquidity (you took what was there) |
+| Fee | **None** | **2% of your own notional** |
+| Rebate | **20% of the taker's fee**, credited instantly | None |
+| Execution price | **Your price** is the trade price | You get the maker's price, keeping any improvement |
+| Who you are in the UI | The person who used "Set your odds" | The person who tapped "Quick bet" |
+
+It is a property of the **order at that moment**, not of the person. You are not registered as one or the other and you do not choose. Whether you are the maker or the taker on a given fill is simply whether you got there first.
+
+### 6.2 One order can be both
+
+This matters and it surprises people. Say the best ask is 8¢ for 50 shares, and you place a limit buy for 100 at 12¢:
+
+```
+  50 shares fill instantly at 8¢    -> on these you are the TAKER (you pay 2%)
+  50 shares rest on the book at 12¢ -> from now on you are a MAKER
+                                        if someone sells into you later,
+                                        you pay nothing and collect a rebate
+```
+
+One order, one transaction, both roles. The program accounts for it fill by fill.
+
+### 6.3 Who is a "market maker"?
+
+**It is a behavior, not a status.** There is no registration, no application, no designated-market-maker role, no special account type, no privileged fee tier, and no obligation to quote. The program does not contain the concept. A market maker is simply **anyone who habitually rests orders on both sides to earn the spread and the rebates**, and that can be a bot, a fund, or you on your phone.
+
+Burbit will never have a privileged market maker, because that party would need inventory and a reason to take risk, and the only reason that works at scale is the protocol subsidizing them. Burbit has no capital to subsidize with, by design. Instead it **removes the need** for one: opposite-side buyers mint against each other (section 5), the opening auction batches the first cross, rebates pay quoters, and anyone can `split` $1 into inventory out of thin air.
+
+### 6.4 Who gets paid a rebate, exactly
+
+You are paid a rebate on a fill **if and only if all three are true**:
+
+1. Your order was **resting on the book** when the fill happened, and
+2. An **incoming taker order matched against it**, and
+3. That fill **generated a fee** (every continuous-trading fill does).
+
+The payment is **20% of that fill's taker fee**, credited **to your free balance in the same instruction as the fill**. It is not accrued, not claimed later, not a weekly points program, and not discretionary.
+
+**Worked example.** Alice rests "sell 100 YES at 20¢". Eve arrives and takes it.
+
+```
+  Eve   (taker):  notional $20.00,  fee 2%  = $0.40   ->  pays $20.40
+  Alice (maker):  fee $0.00,        rebate  = $0.08   ->  receives $20.08
+  Treasury:       $0.40 - $0.08                       =  $0.32
+```
+
+Alice priced her shares at $20.00 and walked away with $20.08 for being there first.
+
+**You do not get a rebate:**
+
+| Situation | Why not |
+| --- | --- |
+| Fills in the **opening auction** | Nobody was resting; everyone submitted into the same sealed batch. Both sides pay 1% instead, and nobody earns a rebate |
+| Fills where **you were the taker** | You consumed liquidity, you pay the fee |
+| `split`, `merge`, `transfer`, `redeem`, deposit, withdraw, cancel | No fee is charged, so there is nothing to rebate |
+
+**Guaranteeing maker status**: place a **post-only** order. If it would cross and execute immediately, the program rejects it instead of filling it. Quoters use this so a fast-moving book can never accidentally turn their quote into a taker order.
+
+---
+
+## 6B. The market maker's trade, in numbers
+
+They are **independent participants using their own money**. Burbit ships an open-source reference quoter bot so anyone can run one.
 
 **The classic two-sided trade**, step by step:
 
@@ -317,19 +385,85 @@ They captured the spread. Add the maker rebate (20% of the taker fees their orde
 
 ---
 
-## 7. How a price actually forms
+## 7. What price a market starts at, what moves it, and what happens to your value
 
-The price you see is the **midpoint between the best bid and the best ask**, exactly as you said. So what happens when the book is thin or one-sided?
+### 7.1 What price does a market start at?
 
-| Book state | What the UI shows |
+**None. A market has no price until its first trade.** Burbit does not set one, and the payout rule ($1 to the winner) does not imply one.
+
+It is worth killing a common assumption directly: **a market does not start at 50¢ / 50¢.** A 50/50 opening would be a statement that the outcome is a coin flip. For "will this token graduate in 15 minutes" the honest base rate is nearer 5%. If Burbit seeded 50/50, the first informed trader would buy NO at 50¢, worth about 95¢ on the evidence, and pocket the difference from whoever funded the seed. **Seeding a price is just donating money to whoever knows better.** So Burbit does not seed, and instead:
+
+| Stage | What exists |
 | --- | --- |
-| Auction phase (first 60s) | Orders visible but nothing matched. Prices labeled indicative until the opening cross |
-| Bids and asks both present | **Mid = (best bid + best ask) / 2.** This is the headline probability |
-| Spread wider than 10¢ | Falls back to the last traded price, because a wide mid is not meaningful |
-| Only bids, no asks | No mid exists. Shows "best bid 8¢" and the last trade. A resting bid with nothing on the other side is a hope, not a price |
-| Nothing at all | No price. The market shows the published base rate for that milestone as a reference, labeled as such |
+| Market opens | No price. The app shows the **published base rate** for this milestone ("historically ~5%") clearly labeled as a reference, not a market price |
+| During the 60-second auction | Orders accumulate, nothing matches, everything is indicative |
+| **At the uncross** | The program computes the **single price that matches the most shares**. This is the market's **first price**, discovered collectively |
+| Continuous trading | Price is the **midpoint of the best bid and best ask**, moving with every order |
 
-**The first real price** is set by the opening auction: the program computes the single price that matches the most volume, and everything that crosses fills there, together. After that, ordinary continuous trading takes over and the price walks with every fill.
+### 7.2 What the price is at any moment
+
+| Book state | Displayed price |
+| --- | --- |
+| Bids and asks both present | **Mid = (best bid + best ask) / 2.** The headline probability |
+| Spread wider than 10¢ | Falls back to the **last traded price**; a wide mid is not meaningful |
+| Only bids, no asks | No mid. Shows "best bid 8¢" and the last trade. A bid with nothing opposite is a hope, not a price |
+| Nothing at all | No price; the base rate is shown as reference |
+
+And always, in every state: **YES + NO = $1.00**. The two sides are one number displayed two ways.
+
+### 7.3 What actually makes the price move
+
+There is **no formula**. This is the fundamental difference from a pool: in an AMM, price is a function of reserves, so every trade mechanically recomputes it. In an order book, **the price is just a description of the best orders currently resting**. It moves when the set of resting orders changes, which happens in exactly three ways:
+
+1. **Orders get consumed.** A taker eats the best ask. That ask is gone. The next-best ask, at a worse price, becomes the top of the book. The price "moved up" because the cheap offers were bought.
+2. **New orders arrive inside the spread.** Someone posts a bid above the old best bid, and the mid moves toward them.
+3. **Orders are cancelled or void.** A maker pulls a quote, or a progress guard or expiry kills it. The next level becomes the top of the book.
+
+What *causes* people to do those things is information about the token: progress jumping, a whale buying, the creator selling, the deadline approaching. **The market translates information into orders, and orders into price.** The program does not have an opinion.
+
+### 7.4 What happens to your value as the price moves
+
+This is the part worth being exact about. Follow Bola, who bought 100 YES at 8¢ for $8.00.
+
+| Moment | What happened to the token | YES | NO | Bola's 100 YES marks at | His unrealized P&L |
+| --- | --- | --- | --- | --- | --- |
+| Open | Listed at 74% | 8¢ | 92¢ | $8.00 | $0 |
+| Minute 2 | Jumps to 82% | 13¢ | 87¢ | $13.00 | +$5.00 |
+| Minute 5 | A whale buys; 88% | 25¢ | 75¢ | $25.00 | +$17.00 |
+| Minute 8 | Creator sells; back to 84% | 18¢ | 82¢ | $18.00 | +$10.00 |
+| Minute 9 | **It graduates** | **$1.00** | **$0** | **$100.00** | **+$92.00, now real** |
+
+Three things to take from this:
+
+**1. Your share count never changes.** Bola always holds 100 YES. Price movement does not mint, burn, dilute or multiply anything you own. What changes is what somebody else would pay you for it today.
+
+**2. Gains are unrealized until you act.** At 25¢ Bola's position is *marked* at $25.00, but that is a quote, not money. It becomes real only when he **sells** (a buyer pays him $25.00 out of their own balance) or when the market **resolves** and he redeems for $100.00.
+
+**3. The vault does not move. At all.** This is the crucial one. Throughout that entire table, the vault held exactly $1.00 per pair, unchanged. **Price movement never creates or destroys collateral; it only re-splits the same $1.00 between the two sides.** Look at the columns: when YES went from 8¢ to 25¢, NO went from 92¢ to 75¢. Bola's $17 paper gain is exactly Ade's $17 paper loss. Every cent one side gains, the other side loses, at every instant, because their prices must sum to $1.00.
+
+That is the whole economics in one sentence: **the pair is always worth $1.00; trading only decides how that $1.00 is divided, until the event decides it absolutely.**
+
+### 7.5 "What price starts each market for the winner to go with $1?"
+
+**Any price. The $1 payout is a constant, not a function of the price.**
+
+The starting price, and every price after it, determines only **what you paid**, which is to say **your return multiple**. The winner receives $1.00 per share whether the market opened at 2¢ or at 90¢:
+
+| You bought the winning side at | You paid per share | You receive | Your return |
+| --- | --- | --- | --- |
+| 2¢ | $0.02 | $1.00 | **50x** |
+| 8¢ | $0.08 | $1.00 | **12.5x** |
+| 30¢ | $0.30 | $1.00 | **3.3x** |
+| 50¢ | $0.50 | $1.00 | **2x** |
+| 90¢ | $0.90 | $1.00 | **1.11x** |
+
+And the funding side of it always balances, which is why the $1.00 is always there to pay: **at the moment a pair is created, the two buyers together contribute exactly $1.00.** If YES was bought at 8¢, the NO buyer necessarily paid 92¢. The price decides *who funds how much of the dollar*, never *how big the dollar is*.
+
+```
+  YES buyer pays  8¢  ┐
+                      ├──>  $1.00 locked in the vault  ──>  paid to whichever side wins
+  NO  buyer pays 92¢  ┘
+```
 
 ---
 

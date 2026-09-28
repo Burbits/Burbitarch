@@ -41,8 +41,12 @@ Fees are applied on top of these moves (section 6). Note the deep property: **MI
 
 ## 3. Maker, taker, and priority
 
-- **Maker**: an order resting on the book at the moment a trade occurs. It added liquidity.
-- **Taker**: the incoming order that crosses the book and executes against resting orders. A marketable limit order is the taker for the quantity it fills on arrival; any remainder that rests becomes a maker for later fills.
+**Roles are determined per fill, never per account.** The test is whether the order was resting on the book at the instant of the fill. There is no registration, no designated market maker, no privileged account type and no fee tier; "market maker" describes behavior (habitually resting two-sided quotes), not a status the program recognizes.
+
+- **Maker**: an order resting on the book at the moment a trade occurs. It added liquidity. Pays no fee; receives the rebate (section 6).
+- **Taker**: the incoming order that crosses the book and executes against resting orders. Pays the fee.
+- **A single order can be both.** A marketable limit order is the taker for the quantity it fills on arrival; any remainder that rests becomes a maker for later fills. The program attributes roles fill by fill, so one `place_order` can pay a taker fee on part of its size and later earn rebates on the rest.
+- **Post-only** guarantees maker status by rejecting any order that would fill on arrival.
 - **Price-time priority**: the best-priced resting order fills first; among equal prices, the earliest fills first. Enforced by the order key: `key = (price_mills << 64) | seq`, with `seq` bit-inverted for bids so that numeric ordering of keys equals price-time ordering on both trees.
 - **Trades execute at the maker's price.** If a taker's limit is better than the maker's, the maker's price applies and the taker keeps the improvement; the taker's unused escrow is released immediately.
 - **Self-trade prevention**: an incoming order skips any resting order owned by the same seat; the resting order stays untouched.

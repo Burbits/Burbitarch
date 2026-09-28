@@ -84,7 +84,7 @@ Existing attempts are pooled parimutuel products resolved from off-chain data fe
 | --- | --- | --- |
 | **The degen** watching launches all day | To bet a view instantly without buying the token | One-tap Quick Bet, live launch feed with odds, sub-second fills, instant cash-out |
 | **The sharp** with a read on launch quality | To size a view and exit at the right price | Limit orders, depth, progress guards, published base rates, public settlement rules |
-| **The market maker / quoter bot** | Spread and rebates on high-frequency markets | Post-only orders, expiry slots, progress guards, instant cancel, maker rebates, a documented SDK |
+| **The market maker / quoter bot** (a behavior, not a registered role) | Spread and rebates on high-frequency markets | Post-only orders, expiry slots, progress guards, instant cancel, maker rebates, a documented SDK |
 | **The token creator** | To signal honesty and earn from it | Creator-written markets, bonded custody, a coverage ratio their community can see |
 | **The keeper operator** | Fees for running infrastructure | Permissionless, idempotent, fee-paying instructions and an open-source keeper binary |
 | **The integrator** | Data and programmatic trading | Public REST/WebSocket APIs, an SDK, no permission required |
@@ -237,7 +237,7 @@ Numbered, testable. Every requirement maps to acceptance tests in section 16.
 ### 8.7 Fees
 
 - **FR-31** Takers pay 2.00% of their USDC notional per fill; makers pay nothing.
-- **FR-32** 20% of each taker fee is credited to the maker's free balance in the same instruction; 80% accrues to the market's fee bucket.
+- **FR-32** 20% of each taker fee is credited to the maker's free balance in the same instruction; 80% accrues to the market's fee bucket. Rebate eligibility is exactly: the order was resting on the book, an incoming taker matched it, and the fill charged a fee. Roles are computed **per fill**, so one order may pay a taker fee on the portion that fills on arrival and earn rebates on the remainder once it rests. `POST_ONLY` guarantees maker status by rejecting any order that would fill immediately. No account is ever registered as a maker or market maker; the program has no such concept.
 - **FR-33** Auction fills charge each filled participant 1% of their own notional, with no rebate to either side.
 - **FR-34** Deposits, withdrawals, cancels, splits, merges, transfers and redemptions charge no protocol fee.
 - **FR-35** Keeper fees are paid from the market's accrued fees per the Config schedule.
