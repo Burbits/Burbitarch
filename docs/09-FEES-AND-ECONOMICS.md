@@ -9,7 +9,7 @@ Every fee in the system, who pays it, where it goes, and the revenue model. Burb
 | Action | Fee | Paid by | Distribution |
 | --- | --- | --- | --- |
 | Taker fill (continuous trading) | **2.00% of the taker's USDC notional** on the filled quantity | Taker | **20% to the maker** on the other side, credited to their seat at fill time; **80% to the treasury**, accrued per market |
-| Auction fill | 2.00% of the bid side's notional | Bid side | 100% treasury (a single-price cross has no resting maker to reward) |
+| Auction fill | **1.00% of each filled participant's own notional** | Both sides | 100% treasury (in a single-price cross nobody was resting, so nobody earns a rebate; the one 2% trade fee is split evenly between the two participants) |
 | Maker fill | **0** | n/a | Makers earn, never pay |
 | Split, merge, deposit, withdraw, cancel, transfer, redeem | **0** | n/a | Network fees only, sponsored in the app flow |
 | Creator rug-market premium | 10% of the creator's YES-sale proceeds, charged as those sales settle | Creator | Treasury |

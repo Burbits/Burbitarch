@@ -107,7 +107,7 @@ During the **Auction** state the same escrow and validation rules apply but noth
 
 - **Takers pay 2% of their USDC notional** on each fill: `fee = 2 × cost / 100` where `cost` is the taker's side of the settlement math (for share-selling takers, the fee is deducted from their USDC proceeds; for share-buying takers it is taken from escrow, which was locked as `cost × 1.02` at placement). Fees round down; the minimum charged is 1 base unit on any nonzero fill.
 - **Makers pay nothing.** At each fill, **20% of the taker fee is credited immediately to the maker's seat** as a rebate, and the remaining 80% accrues to `fees_accrued` for the treasury.
-- **Auction fills** charge the bid side 2% with no rebate (there is no meaningful maker in a single-price cross).
+- **Auction fills** charge **each filled participant 1% of their own notional**, with no rebate. Rationale: in a single-price cross neither party was resting, so neither provided liquidity and neither earns a maker rebate; the single 2% trade fee is split evenly between them. Charging one side only would be arbitrary, because in a mint both parties are buyers paying cash.
 - **Free of Burbit fees**: split, merge, deposit, withdraw, cancel, transfer_shares, redeem. (Network fees, fractions of a cent, may apply and are sponsored in the app's default flow.)
 
 Worked fee examples: `09-FEES-AND-ECONOMICS.md`.
@@ -136,7 +136,7 @@ Market: "Will token X graduate within 15 minutes?", created at 70% progress. For
 **Uncross.** Volume matchable at 40 and 50 mills is 100; at 60 and 70 mills it is 150 (both sides balanced at 150). The tie between 60 and 70 goes to the lower price: **clearing price $0.06**.
 
 - Alice's 150 fill against Dan (100, cheapest ask first) then Bob (50). Both fills are **MINTs** at $0.06.
-- Alice pays 150 × 0.06 = **$9.00**, plus the auction fee 2% × 9.00 = **$0.18**.
+- Alice pays 150 × 0.06 = **$9.00**, plus her auction fee 1% = **$0.09**. Dan pays **$94.00** + **$0.94**; Bob pays **$47.00** + **$0.47**. Total auction fees $1.50, which is 1% of the $150 minted.
 - Dan pays 100 × 0.94 = **$94.00**. Bob pays 50 × 0.94 = **$47.00**.
 - 150 pairs now exist; the vault holds **$150.00** of pair collateral (under the $646 cap) plus $0.18 fees.
 - Carol's bid at $0.05 did not cross and rests.
@@ -145,7 +145,7 @@ Market: "Will token X graduate within 15 minutes?", created at 70% progress. For
 
 - Eve pays $20.00 + taker fee 2% × 20.00 = $0.40, total **$20.40**.
 - Alice receives $20.00 plus the maker rebate 20% × 0.40 = **$0.08**.
-- Treasury accrues $0.32. Total accrued fees: $0.50.
+- Treasury accrues $0.32. Total accrued fees: auction $1.50 + continuous $0.40 − rebate $0.08 = **$1.82**.
 
 **Graduation** at minute 9: the next instruction touching the market halts it; Carol's resting escrow is released in full.
 
@@ -154,13 +154,13 @@ Market: "Will token X graduate within 15 minutes?", created at 70% progress. For
 | Trader | Paid | Received | Net |
 | --- | --- | --- | --- |
 | Eve | 20.40 | 100.00 (100 YES redeemed) | **+79.60** |
-| Alice | 9.18 | 20.00 + 0.08 + 50.00 (50 YES redeemed) | **+60.90** |
-| Dan | 94.00 | 0 | **−94.00** |
-| Bob | 47.00 | 0 | **−47.00** |
+| Alice | 9.09 | 20.00 + 0.08 rebate + 50.00 (50 YES redeemed) | **+60.99** |
+| Dan | 94.94 | 0 | **−94.94** |
+| Bob | 47.47 | 0 | **−47.47** |
 | Carol | 0 | 0 (escrow released) | 0 |
-| Burbit treasury | n/a | fees 0.58 − 0.08 rebate | **+0.50** |
+| Burbit treasury | n/a | fees 1.90 − 0.08 rebate | **+1.82** |
 
-Zero-sum check: 79.60 + 60.90 + 0.50 = 141.00 = 94.00 + 47.00. The vault ends holding exactly the accrued fees, which `sweep_fees` collects, after which `close_market` returns all rent. Burbit never took a side; it earned only fees.
+Zero-sum check: 79.60 + 60.99 + 1.82 = 142.41 = 94.94 + 47.47. The vault ends holding exactly the accrued fees, which `sweep_fees` collects, after which `close_market` returns all rent. Burbit never took a side; it earned only fees.
 
 ## 9. What happens "when each side is on", stated plainly
 

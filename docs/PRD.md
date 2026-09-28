@@ -238,7 +238,7 @@ Numbered, testable. Every requirement maps to acceptance tests in section 16.
 
 - **FR-31** Takers pay 2.00% of their USDC notional per fill; makers pay nothing.
 - **FR-32** 20% of each taker fee is credited to the maker's free balance in the same instruction; 80% accrues to the market's fee bucket.
-- **FR-33** Auction fills charge the bid side 2% with no rebate.
+- **FR-33** Auction fills charge each filled participant 1% of their own notional, with no rebate to either side.
 - **FR-34** Deposits, withdrawals, cancels, splits, merges, transfers and redemptions charge no protocol fee.
 - **FR-35** Keeper fees are paid from the market's accrued fees per the Config schedule.
 
@@ -422,8 +422,8 @@ A complete market, to the cent. Question: "Will $WOOF graduate within 15 minutes
 **Uncross.** Max matched volume is 150 at both 60 and 70 mills; tie goes to the lower price: **clearing price 6¢**.
 
 - Alice's 150 fills against Dan (100, cheapest ask first) then Bob (50). All **MINTs** at 6¢.
-- Alice pays 150 × 0.06 = **$9.00** + auction fee 2% = **$0.18**.
-- Dan pays 100 × 0.94 = **$94.00**. Bob pays 50 × 0.94 = **$47.00**.
+- Alice pays 150 × 0.06 = **$9.00** + her 1% auction fee **$0.09**.
+- Dan pays 100 × 0.94 = **$94.00** + **$0.94**. Bob pays 50 × 0.94 = **$47.00** + **$0.47**. Auction fees total **$1.50**, exactly 1% of the $150 minted.
 - **150 pairs exist. Vault holds $150.00 collateral** (under the $646 limit) + $0.18 fees.
 - Carol's bid at 5¢ did not cross; it rests.
 
@@ -439,13 +439,13 @@ A complete market, to the cent. Question: "Will $WOOF graduate within 15 minutes
 | Trader | Paid | Received | Net |
 | --- | --- | --- | --- |
 | Eve | 20.40 | 100.00 (100 YES) | **+79.60** |
-| Alice | 9.18 | 20.00 + 0.08 + 50.00 (50 YES) | **+60.90** |
-| Dan | 94.00 | 0 | **−94.00** |
-| Bob | 47.00 | 0 | **−47.00** |
+| Alice | 9.09 | 20.00 + 0.08 rebate + 50.00 (50 YES) | **+60.99** |
+| Dan | 94.94 | 0 | **−94.94** |
+| Bob | 47.47 | 0 | **−47.47** |
 | Carol | 0 | 0 (escrow returned) | **0** |
-| Treasury | n/a | 0.18 + 0.32 | **+0.50** |
+| Treasury | n/a | 1.50 auction + 0.40 taker − 0.08 rebate | **+1.82** |
 
-Check: 79.60 + 60.90 + 0.50 = 141.00 = 94.00 + 47.00. **Zero-sum to the cent.** The vault ends holding exactly the accrued fees; `sweep_fees` then `close_market` empties it and refunds all rent.
+Check: 79.60 + 60.99 + 1.82 = 142.41 = 94.94 + 47.47. **Zero-sum to the cent.** The vault ends holding exactly the accrued fees; `sweep_fees` then `close_market` empties it and refunds all rent.
 
 ---
 

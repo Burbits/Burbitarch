@@ -170,6 +170,123 @@ What the protocol does instead is remove the *need* for a first seller:
 
 ---
 
+## 5A. Opening a market: what the first prices are and what people actually pay
+
+### 5A.1 There is no starting bid or ask. There cannot be.
+
+A new market opens with an **empty book**. No bid, no ask, no price, and Burbit does not seed one. That is not a gap in the design, it is the design: **the price is the thing the market is for**. If Burbit posted a starting price it would be guessing, and it would be taking a position to defend that guess.
+
+What a user sees on a brand-new market is therefore:
+
+```
+  Will $WOOF graduate within 15 minutes?
+  ------------------------------------------------
+  YES   no bids   no asks        NO   no bids   no asks
+  No market price yet.
+  Reference: tokens at this stage have historically
+  graduated in this window about 5% of the time.
+  ------------------------------------------------
+  Auction ends in 0:47.  Name your price.
+```
+
+The 5% is the **published base rate** from the collector service, shown as context. It is a starting hint for humans, not a price in the book, and the app labels it that way.
+
+### 5A.2 Your bid is automatically the other side's offer
+
+The moment one person names a price, **both sides of the market exist**, because of the complementary relationship you identified: the two prices must sum to $1.00.
+
+Bola bids 8¢ for 100 YES. Nothing has matched, but look at what the book now shows:
+
+| | YES view | NO view |
+| --- | --- | --- |
+| Best bid | **8¢** (Bola wants to buy YES) | none |
+| Best ask | none | **92¢** (anyone can buy NO at 92¢) |
+
+Bola posted one order and it became the **entire NO offer**. A NO believer arriving one second later sees "Buy NO at 92¢, 100 available" and can hit it instantly. They are not buying from Burbit and not buying from an inventory; hitting it mints a fresh pair between the two of them.
+
+So the answer to "what will the starting bid and ask be": **whatever the first person says**, and the opposite side is set automatically at $1.00 minus that price.
+
+### 5A.3 The opening auction discovers the real first price
+
+Because a single first order is one person's opinion, markets open with a 60-second auction where **nothing matches until the end**, and then everything crosses at **one single price**. Nobody gains by being first, so there is no race, and the first price is a collective result rather than one person's guess.
+
+Here is a complete opening, with exactly what everyone pays.
+
+**Orders submitted during the 60 seconds:**
+
+| Person | Wants | Their limit | Size | Cash locked (cost + 2% fee reserve) |
+| --- | --- | --- | --- | --- |
+| Eve | Buy YES | 12¢ | 50 | $6.12 |
+| Bola | Buy YES | 8¢ | 100 | $8.16 |
+| Carol | Buy YES | 5¢ | 200 | $10.20 |
+| Ade | Buy NO | 92¢ | 100 | $93.84 |
+| Dan | Buy NO | 95¢ | 50 | $48.45 |
+
+**As one book, in YES prices** (remember: buying NO at 92¢ is an ask at 8¢):
+
+```
+   BIDS (want YES)              ASKS (want NO)
+   12¢  x 50   Eve              5¢  x 50   Dan   (buying NO at 95¢)
+    8¢  x 100  Bola             8¢  x 100  Ade   (buying NO at 92¢)
+    5¢  x 200  Carol
+```
+
+**The uncross** finds the price that matches the most shares:
+
+| Candidate price | Buyers willing to pay it or more | Sellers willing to accept it or less | Matched |
+| --- | --- | --- | --- |
+| 5¢ | 350 | 50 | 50 |
+| **8¢** | 150 | 150 | **150** |
+| 12¢ | 50 | 150 | 50 |
+
+**Clearing price: 8¢.** Everyone who crosses fills at 8¢, whatever their own limit was.
+
+**What each person actually pays:**
+
+| Person | Gets | At | Pays | Fee (1%) | Total | Refunded |
+| --- | --- | --- | --- | --- | --- | --- |
+| Eve | 50 YES | 8¢ | $4.00 | $0.04 | **$4.04** | $2.08 (she offered 12¢, paid 8¢) |
+| Bola | 100 YES | 8¢ | $8.00 | $0.08 | **$8.08** | $0.08 |
+| Ade | 100 NO | 92¢ | $92.00 | $0.92 | **$92.92** | $0.92 |
+| Dan | 50 NO | 92¢ | $46.00 | $0.46 | **$46.46** | $1.99 (she offered 95¢, paid 92¢) |
+| Carol | nothing | n/a | $0 | $0 | **$0** | order rests at 5¢, money stays locked and is hers |
+
+**Reconciliation:** cash in from all four = $4.00 + $8.00 + $92.00 + $46.00 = **$150.00**, which is exactly the 150 pairs created × $1.00. YES buyers took 150 shares, NO buyers took 150 shares. The vault holds $150.00 and owes exactly $150.00. Fees collected: $1.50, precisely 1% of the minted value.
+
+**After the auction the market has its first price:**
+
+| | YES view | NO view |
+| --- | --- | --- |
+| Best bid | 5¢ (Carol, 200) | none |
+| Best ask | none | 95¢ (200) |
+| Last trade | **8¢** | **92¢** |
+
+The book is one-sided again until someone posts the other side. The instant Bola decides to take profit and posts "sell 50 YES at 15¢", it becomes two-sided:
+
+| | YES view | NO view |
+| --- | --- | --- |
+| Best bid | 5¢ | 85¢ |
+| Best ask | 15¢ | 95¢ |
+| Mid | **10¢** | **90¢** |
+
+Note the mids sum to $1.00, as they always must.
+
+### 5A.4 What you pay, in plain terms
+
+| Question | Answer |
+| --- | --- |
+| What do I pay to place an order? | Nothing upfront beyond locking the money the order would cost. Cancel it and the lock releases instantly |
+| What if my order never fills? | You pay **nothing**. Every cent comes back at the halt. Unfilled orders are free |
+| What does it cost to buy 100 YES at 8¢? | **$8.00**, plus at most 2% fee. If it wins, you receive $100.00 |
+| What does it cost to buy 100 NO at 92¢? | **$92.00**, plus at most 2% fee. If it wins, you receive $100.00 |
+| Why is the NO side so much more expensive? | Because it is much more likely to be right. You risk $92 to make $8; the YES buyer risks $8 to make $92. Both are paying the market's odds |
+| What is the smallest bet? | $1.00 of notional |
+| Do I have to think in shares? | No. The app takes a **dollar amount** and shows the shares and the payout: "$20 on NO at 92¢ → 21.74 shares → to win **$21.74**" |
+
+### 5A.5 What if only one side shows up?
+
+Then nothing crosses. There is no price, no trade, and no loss: the orders rest, and at the halt every cent of escrow is returned. A market with only believers and no doubters simply never trades. This is a feature: **Burbit never manufactures a counterparty**, so nobody is ever filled against a price nobody was willing to take.
+
 ## 6. Market makers: who they are and how they earn
 
 You are right that prediction markets have market makers. Here is exactly who they are and what they do.
