@@ -121,6 +121,7 @@ Launchpads (existing, public on-chain accounts)
 
 | File | Contents |
 | --- | --- |
+| `WALKTHROUGH.md` | **Start here**: the plain-language, end-to-end product walkthrough: what is traded, where money sits, how the YES/NO books work, who creates the first orders, and what happens to everyone at resolution |
 | `00-OVERVIEW.md` | This file |
 | `01-ARCHITECTURE.md` | Full system architecture and how every component connects |
 | `02-CORE-CONCEPTS.md` | Shares, pairs, collateral, pricing, the invariants that hold everything together |
