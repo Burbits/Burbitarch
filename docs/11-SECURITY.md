@@ -19,7 +19,7 @@ Trust boundaries: **users trust the program** (audited, tested, invariant-checke
 
 1. **Checked math everywhere.** All balance arithmetic in u128 intermediates with explicit floors; any overflow aborts the instruction. No signed arithmetic in fund paths.
 2. **Escrow-first design.** Nothing can be owed: every order locks its worst case (cost + max fee, or shares) before it can rest; matching only moves locked amounts; releases are exact.
-3. **Account validation on every entry point.** PDA re-derivation for market, vault, seat context; owner checks on every external account; the curve account validated by owner, address and reader parse on every use; reject-by-default readers.
+3. **Account validation on every entry point.** PDA re-derivation for market, vault, seat context; owner checks on every external account; the launchpad state account validated by owner, address and reader parse on every use; reject-by-default readers.
 4. **No lamport or token path bypasses.** The vault authority PDA signs only inside `withdraw`, `sweep_positions`, `sweep_fees`, `deposit` (inbound), `split`/`merge`, `redeem` and bond flows; grep-level enumerability of every `invoke_signed` is a review requirement.
 5. **Re-entrancy and CPI surface.** The program CPIs only to the SPL token program and to itself (event log). No arbitrary CPI, no callback surface, no delegate patterns.
 6. **State machine enforcement.** Every instruction checks `state` first; transitions are one-way; `outcome` writes exactly once.
@@ -38,10 +38,10 @@ History's lesson is that exchanges die from admin keys, not order books. Burbit'
 
 | Threat | Defense |
 | --- | --- |
-| Force the outcome to win a market | Open interest capped at α × live forcing cost, priced with a floored SOL/USD |
+| Force the outcome to win a market | Market size capped at α × the amount the token still needs, read live and priced with a floored SOL/USD |
 | Trade on a decided outcome | Halt-on-completion inside every trading instruction |
 | Deadline games | Close gap; irreversible events only |
-| Pick off stale makers | Curve guards checked atomically at match; per-order expiry slots |
+| Pick off stale makers | Progress guards checked atomically at match; per-order expiry slots |
 | Creator insider trading | Creator barred from open markets; rug markets creator-written only; open dump markets capped to pocket change |
 | Launchpad layout change | Fail-closed void at $0.50/share |
 | Oracle manipulation of the cap | Confidence-floored, staleness-checked price; per-market cap ceiling |

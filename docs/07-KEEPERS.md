@@ -21,7 +21,7 @@ Every off-chain worker that advances Burbit markets, its exact algorithm, and wh
 
 Each keeper is a small daemon over the same primitives:
 
-1. **Watch**: subscribe to program accounts (websocket account subscription on the Market discriminator) and to the launchpad program's curve accounts for tracked mints; maintain an in-memory table of `{market, state, times, curve_progress, complete}`.
+1. **Watch**: subscribe to program accounts (websocket account subscription on the Market discriminator) and to the launchpad program's launchpad state accounts for tracked mints; maintain an in-memory table of `{market, state, times, curve_progress, complete}`.
 2. **Decide**: on every account update or clock tick, emit the set of due instructions (pure function of the table; deterministic, so multiple keepers converge on the same work).
 3. **Submit**: build transactions with a compute-budget instruction and a dynamic priority fee (p75 of recent fees, bumped on failure); land via standard RPC, with an optional bundle path for latency-critical completion halts.
 4. **Reconcile**: treat "account already in target state" errors as success (someone else won the race); never retry an instruction whose precondition is gone.
@@ -31,12 +31,12 @@ Races between keepers are safe by construction: every keeper instruction is idem
 ## 3. Per-keeper specifics
 
 ### Market creator
-- Follows the indexer's launch feed (or its own launchpad subscription). On milestone crossing, submits `create_market` with the curve account and Pyth feed.
+- Follows the indexer's launch feed (or its own launchpad subscription). On milestone crossing, submits `create_market` with the launchpad state account and Pyth feed.
 - Fronts ~0.053 SOL rent per market, returned at close; sizes its float as `rent × expected concurrent markets`.
 - Applies listing policy locally (family, milestone, window) but the program independently re-verifies the milestone, so a rogue creator keeper can only create valid markets early or not at all.
 
 ### Halter
-- The latency-sensitive one. Watches curve accounts directly; on observing `real_token_reserves == 0` or `complete == true`, races `halt`. Because *any* trading instruction also halts on observation, the halter's job is to make sure a quiet market (no trades in flight) still records completion within a slot or two.
+- The latency-sensitive one. Watches launchpad state accounts directly; on observing `real_token_reserves == 0` or `complete == true`, races `halt`. Because *any* trading instruction also halts on observation, the halter's job is to make sure a quiet market (no trades in flight) still records completion within a slot or two.
 - Runs with the highest priority-fee ceiling of all keepers; the completion-halt fee is set to cover worst-case fee spikes.
 
 ### Resolver

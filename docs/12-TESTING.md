@@ -6,9 +6,9 @@ How correctness is established and kept: an executable reference implementation,
 
 ## 1. The executable specification
 
-The Python reference implementation (`curvepm/burbit_book.py`, extended for this architecture) is the normative model of the whole exchange: seats, escrow, the four intents, the four settlement kinds, price-time priority, ticks, fees and rebates, curve guards, expiries, the cap, the opening auction and its clearing-price rule, halt, resolution per family, void, redemption, sweeping and closing. Every rule in `03-ORDER-BOOK-SPEC.md` and `04-MARKET-LIFECYCLE.md` is implemented there in plain arithmetic (integers, floored division, same u128 semantics), and every documented example in these docs is a test case in it, including the full worked market in `03` section 8, reproduced to the base unit.
+The Python reference implementation (`curvepm/burbit_book.py`, extended for this architecture) is the normative model of the whole exchange: seats, escrow, the four intents, the four settlement kinds, price-time priority, ticks, fees and rebates, progress guards, expiries, the cap, the opening auction and its clearing-price rule, halt, resolution per family, void, redemption, sweeping and closing. Every rule in `03-ORDER-BOOK-SPEC.md` and `04-MARKET-LIFECYCLE.md` is implemented there in plain arithmetic (integers, floored division, same u128 semantics), and every documented example in these docs is a test case in it, including the full worked market in `03` section 8, reproduced to the base unit.
 
-The reference also implements the curve model: reader parsing, progress, forcing cost, and the cap formula, cross-checked against the Rust `burbit-core` library to the lamport.
+The reference also implements the launchpad-reading side: parsing, outcome detection, progress, the amount still needed, and the size-limit rule, cross-checked against the Rust `burbit-core` library to the unit.
 
 ## 2. Layered test suites
 
@@ -30,7 +30,7 @@ Generator coverage requirements per corpus: all intents and order types; auction
 
 1. `vault = Σ usdc_free + Σ usdc_locked + pairs × $1 + fees_accrued`
 2. Pre-resolution: `Σ yes = Σ no = pairs` (free + locked)
-3. Cap respected at every mint/split against the live curve and price
+3. Cap respected at every mint/split against the launchpad's live state and price
 4. No negative balance anywhere, ever
 5. Every resting order's escrow reconstructs exactly from its terms
 6. Tree validity: red-black properties, key ordering, best-index caches equal true extremes, no dangling seat references, free list disjoint and complete
@@ -39,7 +39,7 @@ Generator coverage requirements per corpus: all intents and order types; auction
 
 ### 2.4 Adversarial scenarios (named, deterministic)
 
-- **Forced graduation**: attacker buys out the curve; assert their maximum extractable win < their forcing spend under all book states at the cap.
+- **Forced outcome**: an attacker pays to finish the token themselves; assert their maximum extractable win stays below what they spent, under every book state reachable at the size limit.
 - **Stale-quote sniper**: curve jumps beyond a maker's guard in the same slot as a taker's order; assert the maker order voids, never fills.
 - **Completion race**: graduation lands between an order's submission and execution; assert halt, full escrow release, no fill.
 - **Cap exhaustion under fire**: concurrent mint pressure at the cap; assert clipping, never exceeding.
@@ -52,7 +52,7 @@ Generator coverage requirements per corpus: all intents and order types; auction
 
 ### 2.5 End-to-end (devnet)
 
-A harness that mirrors real launchpad curve accounts onto devnet (replayed account states) and runs the full stack: keepers, indexer, API, quoter and app against live-shaped data, asserting the user-visible numbers against chain state continuously.
+A harness that mirrors real launchpad launchpad state accounts onto devnet (replayed account states) and runs the full stack: keepers, indexer, API, quoter and app against live-shaped data, asserting the user-visible numbers against chain state continuously.
 
 ## 3. Tooling and CI gates
 

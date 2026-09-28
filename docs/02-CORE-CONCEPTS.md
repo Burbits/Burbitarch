@@ -42,7 +42,7 @@ The app displays prices in cents ("25¢") in trading contexts and as probability
 | USDC amounts | base units, 6 decimals | `u64`; $1.00 = 1,000,000 |
 | Share sizes | micro-shares | `u64`; 1 share = 1,000,000 units, so 1 winning micro-share pays exactly 1 USDC base unit |
 | Prices | mills (thousandths of a dollar) | `u16` in [1, 999]; $0.57 = 570 |
-| Curve progress | basis points | `u16` in [0, 10000] |
+| Progress | basis points | `u16` in [0, 10000] |
 
 Cost of a trade in USDC base units: `cost = price_mills × size_microshares / 1000`, computed in `u128` and floored. Because micro-shares map one-to-one to payout base units, redemption is a plain move of `size` units from vault to seat with no rounding at all.
 
@@ -58,10 +58,10 @@ Cost of a trade in USDC base units: `cost = price_mills × size_microshares / 10
 **Open interest** = pairs outstanding × $1.00 = the pair collateral locked in the vault. It is the maximum any participant set can win in aggregate, which makes it the quantity Burbit caps for safety:
 
 ```
-open_interest ≤ α × forcing_cost_usd        (α = 50%)
+open_interest ≤ α × (amount the token still needs to finish)     (α = 10%)
 ```
 
-`forcing_cost_usd` is what an attacker would spend to force the market's outcome on the launchpad (for graduation questions: buying out the rest of the curve, minus what they would recover selling into the post-graduation pool), computed on-chain from the token's live curve state by the market's reader, denominated in SOL, and converted to USD using the Pyth SOL/USD price with its confidence interval subtracted (a conservative floor). The cap is enforced at every mint and every split, and recomputed from live state each time, so it tightens automatically as the curve fills and forcing gets cheaper. Transfers and merges are never blocked by the cap. Full details and the manipulation analysis are in `05-MARKETS-AND-SETTLEMENT.md`.
+The amount a token still needs is read directly from the launchpad's account, exactly like the outcome flag. It is the money anyone would have to put up to force the outcome themselves, so keeping the market well under it guarantees that forcing the outcome always costs more than winning the market pays (`05-MARKETS-AND-SETTLEMENT.md` section 4 shows the margin). For tokens denominated in SOL the amount is converted to USDC with a conservative price floor: the feed price minus its confidence band, rejected if stale. The cap is checked at every mint and every split from live state, so it tightens as the token approaches the finish and forcing gets cheaper. Transfers and merges are never blocked by it.
 
 ## 6. Where money can be, exhaustively
 
@@ -80,7 +80,7 @@ These hold after every instruction. The program asserts the cheap ones on-chain;
 
 1. **Vault conservation.** `vault.amount = Σ seats.usdc_free + Σ seats.usdc_locked + pairs × 1_000_000 + fees_accrued`.
 2. **Share symmetry.** Before resolution, `Σ (yes_free + yes_locked) = Σ (no_free + no_locked) = pairs`.
-3. **Cap safety.** At the moment of every mint and split, `pairs × 1_000_000 ≤ cap` computed from the live curve.
+3. **Cap safety.** At the moment of every mint and split, `pairs × 1_000_000 ≤ cap` computed from the launchpad's live state.
 4. **No negative balances, ever.** Every buy escrows its maximum cost plus maximum fee at placement; every sell escrows its shares. Matching can only move amounts that are already locked.
 5. **Bounded settlement.** After resolution and full redemption (or sweep), the vault holds exactly `fees_accrued`, and after `sweep_fees` and `close_market` it holds zero.
 6. **Book consistency.** Every resting order's escrow is exactly reconstructible from its price, size and side; the trees contain no order referencing a freed seat; best-price caches equal the true tree extremes.

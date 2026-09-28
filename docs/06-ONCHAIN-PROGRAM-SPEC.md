@@ -18,7 +18,7 @@ The Burbit Solana program: accounts, data layouts, instructions, errors, events,
 | `paused` | u8 | 0 | 1 = no new markets, no new orders; exits always allowed |
 | `taker_fee_bps` | u16 | 200 | 2% of taker notional |
 | `maker_rebate_bps` | u16 | 2000 | 20% of the taker fee |
-| `alpha_bps` | u16 | 5000 | Open-interest cap fraction of forcing cost |
+| `alpha_bps` | u16 | 1000 | Market size limit as a fraction of the amount the token still needs (10%) |
 | `auction_length_s` | u32 | 60 | |
 | `close_gap_s` | u32 | 300 | Trading stops this long before deadline |
 | `min_order_usdc` | u64 | 1_000_000 | $1.00 |
@@ -35,7 +35,7 @@ Admin can **never**: move vault funds, mutate seats or books, set outcomes, or b
 
 ### 1.2 Market
 
-- Seeds: `["market", curve_account, question_tag, deadline_le_bytes]`. Zero-copy. Header 320 bytes + block pool.
+- Seeds: `["market", source_account, question_tag, deadline_le_bytes]`. Zero-copy. Header 320 bytes + block pool.
 
 **MarketHeader:**
 
@@ -46,9 +46,9 @@ Admin can **never**: move vault funds, mutate seats or books, set outcomes, or b
 | `outcome` | u8 | 0 unset, 1 YES, 2 NO, 3 VOID, 10+n bucket n |
 | `question_type` | u8 | 0 graduation, 1 timing, 2 race, 3 creator-dump, 4 creator-rug, 5 ecosystem |
 | `question_params` | [u8; 32] | Family-specific (threshold bps, bucket bounds, group hash) |
-| `mint`, `curve_account` | Pubkey ×2 | The token and its launchpad curve PDA |
-| `reader_id` | u8 | Which reader parses `curve_account` |
-| `token_creator` | Pubkey | From the curve account; barred from open markets on this token |
+| `mint`, `source_account` | Pubkey ×2 | The token and its launchpad curve PDA |
+| `reader_id` | u8 | Which reader parses `source_account` |
+| `token_creator` | Pubkey | From the launchpad state account; barred from open markets on this token |
 | `open_ts`, `uncross_ts`, `close_ts`, `deadline_ts` | i64 ×4 | |
 | `completion_slot` | u64 | 0 until graduation observed |
 | `cap_usdc` | u64 | Last computed cap (informational; enforcement recomputes live) |
@@ -113,7 +113,7 @@ Multi-outcome markets extend the seat with a bucket-balance table in an overflow
 
 ## 2. Instructions
 
-Conventions: every instruction that can trade, halt or resolve takes the market's `curve_account` and validates it (owner = registered launchpad program for `reader_id`; address = expected PDA for `mint`; parse per reader; on parse failure → the void path, never an error that leaves the market live). Signer column shows the required authority; "session" means owner or registered session key. All keeper fees are paid from `fees_accrued`, capped at what has accrued.
+Conventions: every instruction that can trade, halt or resolve takes the market's `source_account` and validates it (owner = registered launchpad program for `reader_id`; address = expected PDA for `mint`; parse per reader; on parse failure → the void path, never an error that leaves the market live). Signer column shows the required authority; "session" means owner or registered session key. All keeper fees are paid from `fees_accrued`, capped at what has accrued.
 
 | Instruction | Signer | Writable accounts | Checks and effects |
 | --- | --- | --- | --- |
@@ -123,15 +123,15 @@ Conventions: every instruction that can trade, halt or resolve takes the market'
 | `create_market(question, deadline, params)` | anyone (keeper) | Market, Vault, Config | Curve valid, not complete, milestone met; Pyth fresh; cap computed; creator recorded; state → Auction; MarketCreated event |
 | `deposit(amount)` | owner | Market, Vault, owner USDC ATA | Token transfer in; `usdc_free += amount`; claims a seat if new |
 | `withdraw(amount, dest)` | owner | Market, Vault, dest token account | `usdc_free −= amount`; transfer out via vault authority; dest must be owned by owner |
-| `place_order(intent, price, size, order_type, expiry_slot, guard, client_id)` | session | Market, Vault (only if shortfall deposit), owner USDC ATA (same), curve account, Pyth feed | Not paused; state Auction or Continuous; caller ≠ `token_creator` (open markets); tick and min-notional checks; escrow from `usdc_free`/share free first, shortfall pulled from the owner's ATA in the same instruction (requires owner signer; session-key flow pre-deposits instead); if curve complete → halt path; match per `03-ORDER-BOOK-SPEC.md`; events |
+| `place_order(intent, price, size, order_type, expiry_slot, guard, client_id)` | session | Market, Vault (only if shortfall deposit), owner USDC ATA (same), launchpad state account, Pyth feed | Not paused; state Auction or Continuous; caller ≠ `token_creator` (open markets); tick and min-notional checks; escrow from `usdc_free`/share free first, shortfall pulled from the owner's ATA in the same instruction (requires owner signer; session-key flow pre-deposits instead); if curve complete → halt path; match per `03-ORDER-BOOK-SPEC.md`; events |
 | `cancel_order(order_id)` / `cancel_all` | session | Market | Release escrow to free; free block |
-| `prune_expired(n)` | anyone | Market, curve account | Void up to n expired/guard-violated resting orders; keeper fee |
-| `uncross` | anyone | Market, curve account, Pyth | `now ≥ uncross_ts`; auction algorithm per `04-MARKET-LIFECYCLE.md`; state → Continuous; fee |
+| `prune_expired(n)` | anyone | Market, launchpad state account | Void up to n expired/guard-violated resting orders; keeper fee |
+| `uncross` | anyone | Market, launchpad state account, Pyth | `now ≥ uncross_ts`; auction algorithm per `04-MARKET-LIFECYCLE.md`; state → Continuous; fee |
 | `split(n)` / `merge(n)` | owner | Market, Vault, owner ATA (split in / merge out optional) | Split: state ≤ Continuous, cap check, lock $1×n, credit both sides. Merge: any state, burn pair, release $1×n to free |
 | `transfer_shares(side, amount, to)` | owner | Market | Move free shares between seats; creator-locked NO untransferable |
-| `halt` / `halt_continue` | anyone | Market, curve account | On completion (record slot) or `now ≥ close_ts`; release all resting escrow (resumable via `halt_cursor`); state → Halted; fee on completion-halt |
-| `record_witness(event_kind)` | anyone | Market, witnessed account(s) | The generalized ever-witness crank for grade-B questions (`15-QUESTION-CATALOG.md`): verifies the market's witness condition against the passed account(s) at the current slot and, if satisfied pre-deadline, records the slot permanently. Kinds: creator balance below threshold (dump markets, reads the creator's token account), curve progress ≥ X, real SOL ≥ X, SOL market cap ≥ threshold (King-of-the-Hill proxy), pool reserve below X (post-graduation crash, reads the destination AMM pool via the pool reader), creator fee accrual ≥ X. Pays a small keeper fee on a successful first witness |
-| `resolve` | anyone | Market, curve account or creator token account or destination pool account | Per family table in `04-MARKET-LIFECYCLE.md` and the catalog (`15-QUESTION-CATALOG.md`): grade-A flags read live; grade-B questions resolve YES if a witness slot was recorded before the deadline (with one final live check), else NO; grade-C snapshots read the named account at the named slot boundary; sets `outcome` once; state → Resolved; fee |
+| `halt` / `halt_continue` | anyone | Market, launchpad state account | On completion (record slot) or `now ≥ close_ts`; release all resting escrow (resumable via `halt_cursor`); state → Halted; fee on completion-halt |
+| `record_witness(event_kind)` | anyone | Market, witnessed account(s) | The generalized ever-witness crank for grade-B questions (`15-QUESTION-CATALOG.md`): verifies the market's witness condition against the passed account(s) at the current slot and, if satisfied pre-deadline, records the slot permanently. Kinds: creator balance below threshold (dump markets, reads the creator's token account), progress ≥ X, real SOL ≥ X, SOL market cap ≥ threshold (King-of-the-Hill proxy), pool reserve below X (post-graduation crash, reads the destination AMM pool via the pool reader), creator fee accrual ≥ X. Pays a small keeper fee on a successful first witness |
+| `resolve` | anyone | Market, launchpad state account or creator token account or destination pool account | Per family table in `04-MARKET-LIFECYCLE.md` and the catalog (`15-QUESTION-CATALOG.md`): grade-A flags read live; grade-B questions resolve YES if a witness slot was recorded before the deadline (with one final live check), else NO; grade-C snapshots read the named account at the named slot boundary; sets `outcome` once; state → Resolved; fee |
 | `redeem` | owner | Market, Vault | Winning shares × $1 (VOID: all × $0.50) to `usdc_free`; optionally chain `withdraw` |
 | `sweep_positions(n)` | anyone | Market, Vault, up to n owner ATAs | Redeem + push each seat's free balance to its owner's USDC ATA; below `dust_threshold` → fees; mark settled, free blocks, `unsettled_seats −= 1` each; per-seat fee |
 | `sweep_fees` | treasury | Market, Vault, treasury ATA | Transfer `fees_accrued` |

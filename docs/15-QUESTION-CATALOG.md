@@ -10,23 +10,23 @@ The complete space of prediction questions Burbit can run on bonding-curve token
 2. **Time.** All deadlines are cluster time; a "UTC day" is published as an explicit slot range at market creation. Ties break by slot, then transaction index.
 3. **Reads.** Settlement references on-chain semantics (reserves, flags, signers, instruction executions), never byte offsets; readers fail closed into VOID (`05-MARKETS-AND-SETTLEMENT.md`).
 4. **Offerability classes.**
-   - **OPEN**: order book with the open-interest cap = α × forcing cost, recomputed live.
+   - **OPEN**: order book sized at α × the amount the token still needs, re-read live.
    - **SMALL**: order book with a fixed small cap (default $50) because a participant can force the outcome; the app labels why.
    - **MICRO**: fixed cap $10; novelty markets where forcing is near-free for some party; labeled.
    - **CREATOR**: creator-written and creator-bonded only (`05` section 7 mechanics).
    - **PROPOSAL**: settled by bonded proposal with a challenge window (`05` section 8), for aggregates no single account holds.
    - **NOT OFFERED**: listed here with the reason, so the exclusion is policy, not oversight.
-5. **Forcing-cost formulas used below.**
-   - `F_grad(s)` = cost to force graduation from progress s: buy out the remaining curve, minus recovery selling into the post-graduation pool (the table in `05` section 4; 19.5 SOL at launch, 8.6 at 70%, 2.5 at 90%).
-   - `F_push(s→x)` = cost to push progress from s to x **and back**: a round trip on the curve returns the attacker's SOL minus fees, so `F_push ≈ 2 × 1.25% × SOL_required(s→x)` plus curve asymmetry. This is the honest forcing cost of every "ever reaches X%" question, and it is small: caps on those markets are correspondingly small by formula, not by exception.
-   - `F_wash(V)` = cost to fabricate V of volume ≈ 2.5% × V (round-trip fees). This is why volume-family questions are not open markets.
-   - `F_sybil(N)` ≈ 0.002 SOL × N (token-account rent) to fabricate N holders. This is why holder-count questions are not open markets.
+5. **How "who can force this, and for how much?" is judged.** Every question below is scored on one thing: what would someone have to spend to make the answer come out their way? Four patterns cover every case, and they decide the offerability class, not case-by-case judgement:
+   - **Finish the token yourself.** Expensive, and the price is a number the launchpad publishes (the amount still needed). Markets are sized at a fraction of it, so this is always a losing trade. → OPEN.
+   - **Move it and move it back.** Pushing a token past a milestone and letting it fall back costs only the launchpad's trading fees on the round trip, which is cheap. Markets keyed on milestones are therefore sized against that small number, not against the cost of finishing. → OPEN but small.
+   - **Do the thing yourself.** For creator behavior, whale prints, and anything one participant simply chooses, forcing is free to that participant. → SMALL, MICRO, or creator-written.
+   - **Fake the metric.** Volume, trade counts, holders and similar are manufacturable for pennies (round-trip fees, or the rent on a fresh account). No size limit makes these safe. → NOT OFFERED.
 
 ---
 
 ## 2. Family A: Graduation of a single token
 
-The flagship family. Settlement grade **A**: `complete == true` on the token's curve account, observed before the deadline (the observation slot is recorded at halt). Forcer: YES by buying out the curve (`F_grad`), NO by insiders stalling (residual, disclosed). Creator barred from trading. Cap = α × F_grad × SOL/USD floor, live.
+The flagship family. Settlement grade **A**: the launchpad's completion flag for the token, observed before the deadline (the observation slot is recorded at halt). Who could force it: YES by paying to finish the token, NO by large holders dumping to stall it (the disclosed residual). Creator barred from trading. Size limit = α × the amount the token still needs, read live and converted with a floored price.
 
 | ID | Question template | Parameters | Class | Notes and hypothesis |
 | --- | --- | --- | --- | --- |
@@ -34,28 +34,28 @@ The flagship family. Settlement grade **A**: `complete == true` on the token's c
 | A2 | Will TOKEN graduate within N minutes of listing? | N ∈ {5, 10, 15} | OPEN | Base rates by listing milestone: at 70% progress, 3.9% (5 min), 5.4% (15 min); at 90%, 22.0% and 27.3%. Hypothesis: retail overprices YES near hype peaks, giving NO-side edge that the quoter monetizes |
 | A3 | Will TOKEN graduate within N minutes of its creation? | N | OPEN | Median graduate takes 4.4 minutes from creation; long right tail. Only listed while the answer is open |
 | A4 | Time-to-graduation bucket | buckets: under 5 min / 5 to 15 / 15 to 60 / never (from listing) | OPEN, multi-outcome | Complete-set market (`05` section 6). Uses the recorded completion slot; per-second-sensitive bucket edges are not listed |
-| A5 | Final-stretch express: graduates within 5 minutes? | listed at ≥ 90% | OPEN | High base rate (22%+), tiny cap (F_grad ≈ 2.5 SOL at 90%), fast turnover; the "scalp" product |
+| A5 | Final-stretch express: graduates within 5 minutes? | listed at ≥ 90% | OPEN | High base rate (22%+), tiny size limit because so little is left to finish, fast turnover; the "scalp" product |
 | A6 | Will TOKEN ever graduate before end of day? | day boundary | OPEN | Longer windows raise insider-blocking from 1.7% toward 9.1%; disclosed in Rules; cap unchanged |
-| A7 | Will this USDC-curve token graduate before T? | `quote_mint` = USDC | OPEN | Reader branches on `quote_mint`; forcing cost is natively in USDC (bond at $58,783), so **no price oracle is needed for the cap**: the cleanest cap math in the catalog |
+| A7 | Will this USDC-denominated token graduate before T? | token quoted in USDC | OPEN | The reader branches on the token's quote currency; the amount still needed is already in USDC, so **no price feed is involved in the size limit at all**: the cleanest case in the catalog |
 | A8 | Will this mayhem-mode token graduate within its 24-hour agent window? | `is_mayhem_mode` | OPEN | A distinct behavioral cohort (an AI agent trades it for 24h, 2B supply); collector measures its own base rate before wide listing |
 | A9 | Will this cashback coin graduate before T? | `is_cashback_coin` | OPEN | Cashback launches lifted platform graduations above 300/day; flag read at creation |
 | A10 | Race-to-graduation vs deadline for a token on another launchpad | reader per launchpad | OPEN | Same mechanics under each registered reader; thresholds differ (85 SOL, ~400, ~500 SOL) so caps differ |
 | A11 | "Will it NOT graduate?" | any of the above | n/a | Not a separate market: it is the NO side of the same book. Documented so nobody lists a duplicate |
 | A12 | Will migration execute within N slots of completion? | N | NOT OFFERED | Degenerate since the venue's own AMM era: migration is instant and permissionless; the answer is always yes |
 
-## 3. Family B: Curve progress and milestones
+## 3. Family B: Progress and milestones
 
-Grade **B** (ever-witness). Forcer: anyone, via `F_push`, so caps are small by formula. These are the "momentum" products: fast, cheap, high-frequency.
+Grade **B** (ever-witness). Anyone can force these by pushing the token past the milestone and letting it fall back, which costs only the launchpad's round-trip fees, so these markets are sized against that small number rather than against the cost of finishing. They are the "momentum" products: fast, cheap, high-frequency.
 
 | ID | Question template | Settlement read | Class | Notes and hypothesis |
 | --- | --- | --- | --- | --- |
-| B1 | Will TOKEN's curve ever reach X% before T? | progress from reserves, ever-witnessed | OPEN (cap = α × F_push) | The stepping-stone market (for example "reaches 90% within 10 minutes" listed at 60%). Death is overwhelmingly likely below 20%, so lines sit in the 50 to 95% band where uncertainty is real |
-| B2 | Will real SOL in the curve ever reach X SOL before T? | `real_sol_reserves` | OPEN (α × F_push) | Equivalent to B1 in different units; listed only when it reads better than a percent |
-| B3 | Will TOKEN hit the King-of-the-Hill threshold before T? | curve-computed SOL market cap ≥ 45 SOL, ever-witnessed | OPEN (α × F_push) | The proxy for the front-page crown (~53% bonded). The badge itself is off-chain and never referenced. Hypothesis: the KotH race is the most-watched sub-graduation event in the ecosystem and has no market anywhere |
+| B1 | Will TOKEN's curve ever reach X% before T? | progress from reserves, ever-witnessed | OPEN (sized on the round-trip cost) | The stepping-stone market (for example "reaches 90% within 10 minutes" listed at 60%). Death is overwhelmingly likely below 20%, so lines sit in the 50 to 95% band where uncertainty is real |
+| B2 | Will the token ever take in X SOL before T? | the amount deposited so far | OPEN (sized on the round-trip cost) | Equivalent to B1 in different units; listed only when it reads better than a percentage |
+| B3 | Will TOKEN hit the King-of-the-Hill threshold before T? | the launchpad's own visibility threshold, ever-witnessed | OPEN (sized on the round-trip cost) | The proxy for the front-page crown (~53% bonded). The badge itself is off-chain and never referenced. Hypothesis: the KotH race is the most-watched sub-graduation event in the ecosystem and has no market anywhere |
 | B4 | Will TOKEN reach X% before its creator first sells? | first-witnessed of: progress ≥ X vs creator-signed sell | MICRO | A two-event race the creator half-controls; micro cap, labeled |
-| B5 | Will price ever reach k× launch before T? | curve price | NOT OFFERED | Pure pump-and-revert: an attacker round-trips the curve for fees only; the manipulation studies put averaged/snapshot price settlement at 42 to 85% attacker profitability. Progress questions (B1) already express the same view safely because their forcing cost formula is honest |
+| B5 | Will price ever reach k× launch before T? | token price | NOT OFFERED | Pure pump-and-revert: an attacker pushes the price and lets it fall back, paying only trading fees; studies put averaged and snapshot price settlement at 42 to 85% attacker profitability. Progress questions (B1) express the same view safely, because there the cost of pushing is what the market is sized against |
 | B6 | Trade count ≥ N before T | buy/sell instruction count | NOT OFFERED | Forgeable at ~zero cost per trade |
-| B7 | Cumulative buy volume ≥ V before T | sum of buys | NOT OFFERED | `F_wash(V) ≈ 2.5% × V`: a $10,000 volume line costs ~$250 to force; no cap worth running survives that |
+| B7 | Cumulative buy volume ≥ V before T | sum of buys | NOT OFFERED | Manufacturing volume costs only the launchpad's round-trip fees, a couple of percent: a $10,000 line can be forced for about $250, and no size limit worth running survives that |
 | B8 | A single buy ≥ X SOL occurs before T ("whale print") | any buy instruction ≥ X | MICRO | Anyone with X SOL forces it for round-trip fees; kept as a $10 novelty because demand exists |
 | B9 | Named wallet W trades TOKEN before T ("will the whale ape?") | any curve/pool trade signed by W | MICRO | Crisp and hugely watched (copy-trading culture), but W or anyone colluding with W forces it freely; micro cap, prominently labeled |
 
@@ -69,7 +69,7 @@ Grade **A/B**. The creator controls most of these outcomes, which is exactly why
 | C2 | Will the creator's balance ever fall below X% of their initial bag before T? | creator ATA, ever-witnessed | SMALL | The graded version of C1 ("sold half") |
 | C3 | Will the creator dump everything before T? | creator ATA reaches 0 after being > 0 | SMALL | |
 | C4 | Will the creator claim fees before T? | `collect_creator_fee` (curve) or the AMM fee-claim instruction, signed by creator | MICRO | Creator-controlled but a real behavioral tell since fee income became significant in 2025 |
-| C5 | Will cumulative creator fees on TOKEN reach X SOL by T? | fee-vault balance + claimed amounts | OPEN (cap = α × F, where F ≈ 3.2 × X: a creator wash-trading their own token nets 0.30% back of the 1.25% they pay, so fabricating X of creator fees costs about 3.2X) | The one volume-linked question with an honest forcing floor, because the forcer loses most of the wash cost. A proxy market on "does this token have a real afterlife" |
+| C5 | Will cumulative creator fees on TOKEN reach X by T? | the creator's accrued plus claimed fees | OPEN (sized on the cost of faking it: a creator who trades against themselves to manufacture fees gets back only a small share of what they pay in, so producing X of fees costs them several times X) | The one activity-linked question that is safe to offer, precisely because faking it is expensive rather than cheap. A proxy for "does this token have a real afterlife" |
 | C6 | Will the creator launch another token within T? | another `create`/`create_v2` signed by the same wallet | MICRO (open) / CREATOR (bonded pledge) | Serial deployers launch 50 to 268 tokens/month. The creator-bonded version ("I will not deploy again for 7 days, bonded") is a sellable commitment device |
 | C7 | Will the creator still hold ≥ X% at graduation? | creator ATA at the completion slot, conditional on completion (void if no graduation) | CREATOR | The "diamond-hands bond": creators sell YES-on-holding as a credibility instrument |
 | C8 | Creator-written rug market: will the creator withdraw custody before expiry? | custody withdrawal in the bond program is the event itself | CREATOR | The flagship (`05` section 7): bond escrowed, NO locked to creator, YES sold as insurance, coverage ratio displayed |
@@ -93,12 +93,12 @@ Grade **B/C** on the destination pool account (a second reader parses the AMM po
 
 ## 7. Family F: Races and cohorts
 
-Grade **A** across multiple named curve accounts (each passed into settlement), or **D** for open cohorts.
+Grade **A** across multiple named launchpad state accounts (each passed into settlement), or **D** for open cohorts.
 
 | ID | Question template | Settlement | Class | Notes |
 | --- | --- | --- | --- | --- |
-| F1 | Which of these K tokens graduates first? | earliest recorded completion among K named curves; "none" bucket at deadline | OPEN, multi-outcome | Cap = α × min forcing cost in the group. The trench-warfare product: pick the winner of the hour |
-| F2 | Will any of these K tokens graduate before T? | any completion among named set | OPEN | Cap by cheapest F_grad in the set |
+| F1 | Which of these K tokens graduates first? | earliest recorded completion among K named curves; "none" bucket at deadline | OPEN, multi-outcome | Sized on the cheapest token in the group to finish. The trench-warfare product: pick the winner of the hour |
+| F2 | Will any of these K tokens graduate before T? | any completion among the named set | OPEN | Sized on the cheapest token in the set to finish |
 | F3 | Will the first token created after T0 to graduate be created within N minutes of T0? and similar open-cohort firsts | full-history over the launchpad | PROPOSAL | Cohort enumeration exceeds single-account reads |
 | F4 | Will today's fastest creation-to-graduation time beat X minutes? | cohort minimum | PROPOSAL | The "speedrun record" market |
 
@@ -134,11 +134,11 @@ Every excluded question type, with the reason stated as policy:
 
 | Question type | Reason for exclusion |
 | --- | --- |
-| Any USD price or market-cap target (reaches $X, mcap $69k, "$1M club") | Needs a price oracle and settles on paintable prints; SOL-progress questions express the same views with honest forcing math |
+| Any USD price or market-cap target (reaches $X, a named market cap, "$1M club") | Needs a price feed and settles on prints anyone can paint; progress questions express the same views safely |
 | Any "price at time T" or averaged-price rule | Manipulation-profitable in 42 to 85% of simulated attempts; the founding exclusion |
 | ATH price/mcap within a window | Settles on trade prints that MEV and wash trades can set |
-| Volume ≥ V, trade count ≥ N, buys/sells ≥ N | `F_wash ≈ 2.5% × V` and near-zero per-trade cost: forgeable for pocket change |
-| Unique buyers ≥ N, holder count ≥ N, top-10 share thresholds | `F_sybil ≈ 0.002 SOL per holder` and free wallet-splitting |
+| Volume ≥ V, trade count ≥ N, buys/sells ≥ N | Manufacturable for round-trip fees, and a trade costs next to nothing: forgeable for pocket change |
+| Unique buyers ≥ N, holder count ≥ N, top-10 share thresholds | A fake holder costs only the rent on a token account, and splitting a balance across wallets is free |
 | Sniper %, bundle %, insider %, fresh-wallet %, cluster %, bot %, any vendor risk score, "rugged" labels | Contested proprietary definitions; no two tools agree; never settleable. Where the behavior matters, it appears only as a pinned primitive (H4) or a disclosure |
 | Anything off-chain: social accounts and renames, follower counts, influencer mentions, paid listings and boosts, front-page badges, livestreams, community-takeover status, exchange listing announcements | Not readable by the program; used as pricing context by traders, never as settlement |
 | Migration-executes, LP-burned, authorities-revoked on this launchpad | Degenerate: true by construction |
@@ -152,7 +152,7 @@ Every excluded question type, with the reason stated as policy:
 | A5 final stretch at 90%/5 min | 22.0% | The tightest race; insiders' stalling power is the real YES/NO edge |
 | B3 King-of-the-Hill | to be measured live | First market anywhere on the ecosystem's most-watched sub-graduation event |
 | C1 creator sells before 5 min | ~54% prior; 92.2% of tokens see a dump event | Insurance demand meets creator-reputation signaling; serial-deployer history (2.3 to 8.4% graduation ratios) is public pricing alpha |
-| C5 creator fees ≥ X | new since 2025 fee regime | A clean "does this token have a real afterlife" proxy with honest forcing math |
+| C5 creator fees ≥ X | new since the 2025 fee regime | A clean "does this token have a real afterlife" proxy that is expensive to fake |
 | E2 below 40% within 20 min | ~73% YES | The reality-check market; prices teach the base rate the ecosystem ignores |
 | G1 daily graduations | regime-dependent (80 to 1,045/day) | Macro bets on fee changes, feature launches, and launchpad wars |
 | F1 first-to-graduate races | n/a | Converts trench tribalism into priced competition |

@@ -1,26 +1,31 @@
 # Markets and Settlement
 
-What Burbit lets people predict about bonding-curve tokens, how each question settles from on-chain data, and the safety rules that make cheating cost more than it can win.
+What Burbit lets people predict about freshly launched tokens, how each question settles from on-chain data, and the safety rules that make cheating cost more than it can win. The launchpad is an event source: Burbit reads outcomes from it and never participates in it.
 
 ---
 
-## 1. The bonding-curve lifecycle is the product
+## 1. The token's lifecycle is the event source
 
-A bonding-curve token's life is short, violent and fully on-chain: launch, a race up the curve, then either graduation to an open pool or death. Tens of thousands launch per day; only a fraction of a percent graduate, the median graduation takes minutes, creators are insiders in nearly every launch, and most graduated tokens collapse shortly after. There is nowhere to express a view on any of this except buying the token itself, which means taking the insiders' risk. Burbit turns each measurable, irreversible event in that lifecycle into a market.
+A freshly launched token's life is short, violent and fully on-chain: it launches, it either fills up and graduates to an open market or it dies, and its creator either holds or dumps. Tens of thousands launch per day; only a fraction of a percent graduate; the typical graduation takes minutes; creators are insiders in nearly every launch; most graduated tokens collapse shortly after.
 
-## 2. Launchpad integration is a reader, nothing more
+Those are **events**, and events are all Burbit needs. Burbit does not launch tokens, does not run a curve or a pool, does not price tokens, and does not model how they trade. It watches for the outcomes and runs markets on whether they will happen. The relationship is exactly the relationship a sports market has to a match: we do not play, we settle on the score.
 
-Burbit operates no curve and no AMM; it integrates a launchpad by shipping a **reader**: read-only code that parses that launchpad's public per-token account and implements four functions (parse and validate, curve progress, forcing cost, creator address). Any bonding-curve launchpad can be integrated this way, permissionlessly, because public account data is readable by anyone. Every reader rejects anything it does not exactly recognize, which routes layout changes into the void path instead of wrong settlements.
+## 2. What Burbit reads from a launchpad
 
-The first reader targets the dominant Solana launchpad's public program. Facts the reader relies on, all from the launchpad's own published program documentation and IDL:
+Every launchpad keeps a public on-chain account per token that records that token's state and, ultimately, its outcome. Integrating a launchpad means writing one **reader**: read-only code that parses that account and answers four questions.
 
-- Program id: `6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P`.
-- Per-token curve account: PDA `["bonding-curve", mint]`, owned by that program.
-- Layout (after the 8-byte discriminator): `virtual_token_reserves: u64`, `virtual_sol_reserves: u64`, `real_token_reserves: u64`, `real_sol_reserves: u64`, `token_total_supply: u64`, `complete: bool`, `creator: Pubkey`, plus later-appended fields the reader ignores.
-- `complete` starts false and is set true at the end of the buy that empties `real_token_reserves`; migration to the open pool follows permissionlessly. **`complete == true` is graduation**, and it is irreversible.
-- Curve parameters used by the cost model: virtual reserves 30 SOL × 1.073B tokens, 793.1M tokens sellable on the curve, ~85 SOL real reserve at graduation, 1.25% fee per side.
+| The reader answers | Used for |
+| --- | --- |
+| **Is this account genuine and readable?** | Validation; unreadable means the market voids instead of guessing |
+| **Has the outcome happened yet?** (graduated or not) | Settling graduation, timing and race markets |
+| **How far along is it, and how much is still needed to finish?** | Milestone markets, order guards, and the market size limit (section 4) |
+| **Who is the creator?** | Barring them from their own token's markets; settling creator questions |
 
-Reader rules: verify the account owner is the registered program and the address equals the PDA for the mint; check the discriminator; parse the stable prefix by offset; tolerate appended trailing bytes; **reject anything else**. Rejection voids the market rather than risking a wrong settlement. Additional launchpads are added one reader at a time under the same contract (parse, progress, forcing cost, creator address).
+That is the whole integration surface. Any bonding-curve launchpad can be supported by adding a reader, permissionlessly, because the data is public and anyone may read it. Nothing is written to the launchpad, no permission is asked, and no other part of Burbit changes per venue.
+
+The first reader targets the dominant Solana launchpad, whose program publishes its account layout and IDL. It locates the token's state account at the address that launchpad derives for the mint, confirms the account is owned by that launchpad's program, checks the type discriminator, and reads the fields it needs: the completion flag (the graduation outcome, which is irreversible once set), the amounts deposited and remaining, and the creator's address. Later fields appended by launchpad upgrades are ignored.
+
+**Reader rules, strictly enforced:** verify owner and address, check the discriminator, parse only the fields whose meaning is stable, tolerate appended bytes, and **reject anything else**. A rejection voids the market and returns everyone's money rather than risking a wrong settlement.
 
 ## 3. Question families
 
@@ -28,34 +33,33 @@ This section is the summary; the exhaustive, normative enumeration of every ques
 
 | Family | Examples | Settles from | Who could force it | How offered |
 | --- | --- | --- | --- | --- |
-| **Graduation** | Graduates before 18:00? Within 10 minutes? | The curve account's `complete` flag | YES: buying out the curve (1 to 19.5 SOL depending on progress). NO: insiders dumping to stall | Open book; open interest capped by forcing cost; creator barred |
-| **Graduation timing** | Time to graduate: under 5 min / 5 to 15 / 15 to 60 / never | The recorded `completion_slot` | As above | Multi-outcome market (section 6) |
-| **Race** | Which of these 3 launches graduates first? | The competing curve accounts' completion slots | Buying out the cheapest curve in the group | Multi-outcome; capped by the cheapest forcing cost |
-| **Creator dump (open)** | Creator sells ≥ 50% of their launch bag before 18:00? | The creator address from the curve account and that wallet's token account balance | The creator alone, trivially, from a second wallet | Open book with a small fixed cap (default $50 open interest), clearly labeled |
+| **Graduation** | Graduates before 18:00? Within 10 minutes? | The launchpad's completion flag for the token | YES: paying to finish the token's launch yourself. NO: large holders dumping to stall it | Open book; size limited below the cost of forcing it; creator barred |
+| **Graduation timing** | Time to graduate: under 5 min / 5 to 15 / 15 to 60 / never | The recorded completion slot | As above | Multi-outcome market (section 6) |
+| **Race** | Which of these 3 launches graduates first? | The competing tokens' completion slots | Finishing the cheapest token in the group | Multi-outcome; limited by the cheapest one to force |
+| **Creator dump (open)** | Creator sells ≥ 50% of their launch bag before 18:00? | The creator address read from the launchpad and that wallet's token balance | The creator alone, trivially, from a second wallet | Open book with a small fixed cap (default $50 open interest), clearly labeled |
 | **Creator-written rug** | Will the dev rug before expiry? | Custody withdrawal in the bond program itself | The creator, who is the only writer and the only payer | Section 7 |
 | **Ecosystem-wide** | Graduations today over/under 80? | A count across launches | Requires forcing many graduations | Open book; settled by bonded proposal with a challenge window |
 | **Not offered** | Price at time T, market cap targets, volume, holder counts | n/a | Anyone, cheaply, and profitably under any averaging rule | Never listed |
 
 Price-based questions are excluded by design: simulation of snapshot and averaged settlements showed pump-based manipulation profitable in 42% to 85% of attempts depending on the rule. Only irreversible, binary, account-readable events are listed.
 
-## 4. Forcing cost and the open-interest cap
+## 4. The market size limit
 
-The core anti-manipulation rule: **a market must never be worth more to cheat than the cheat costs.**
+The core anti-manipulation rule: **a market must never be worth more to win by cheating than cheating costs.**
 
-- `forcing_cost(curve)` = SOL to buy out the remainder of the curve on the launchpad (moving the price up it, paying its fees) minus SOL recovered by selling those tokens into the post-graduation pool. Computed in integer math by the reader from live reserves. Reference values for the first launchpad's parameters:
+There is only one way to cheat a graduation market: go to the launchpad and finish the token's launch yourself, so that YES becomes true. Doing that requires putting up the money the token still needs. **That amount is a single number Burbit reads from the launchpad's account**, the same way it reads the outcome flag: how much is still required for this token to finish.
 
-| Curve progress | Forcing cost (SOL) |
-| --- | --- |
-| 0% | 19.52 |
-| 30% | 16.28 |
-| 50% | 13.12 |
-| 70% | 8.62 |
-| 80% | 5.70 |
-| 90% | 2.46 |
-| 95% | 0.95 |
+So every market carries a size limit:
 
-- The cap: `open_interest ≤ α × forcing_cost × sol_usd_floor`, α = 50%, where `sol_usd_floor` is the Pyth SOL/USD price minus its confidence interval, staleness-checked (≤ 30 slots). Enforced at market creation and re-enforced at **every mint and split** from the live curve, so the ceiling tightens as forcing gets cheaper. Transfers and merges are never capped.
-- Consequence: an attacker who forces graduation to win the YES side can win at most the open interest, which is at most half what the forcing cost them, before even paying Burbit's fees or slippage. Simulated attacks (150 runs across crowd behaviors) never beat the on-chain formula.
+```
+total collateral in the market  ≤  α × (amount still needed to finish)
+```
+
+with **α = 10%**, converted to USDC (for tokens denominated in SOL, using a conservative price floor: the feed price minus its confidence band, rejected if stale). The limit is set when the market opens and **re-checked every single time new shares are created**, so it tightens automatically as the token gets closer to finishing and cheating gets cheaper. Trading existing shares and cashing out are never limited: the cap only governs how much new collateral can enter.
+
+**Why 10% is the right number.** An attacker who pushes a token to completion does not lose everything they spend; they end up holding the tokens they bought and can sell some of that back, so their true net cost is a fraction of what they put in. Measured across the whole range of a token's life, that net cost never falls below roughly a quarter of the gross amount deposited. Capping at 10% of the gross therefore keeps every market below **half** of the attacker's true net cost, at every point, with margin. The attacker's best case is to spend a dollar to win less than fifty cents, before Burbit's fees and before the price impact of their own buying. The parameter lives in Config, is bounded in-program, moves only behind a timelock, and is re-derived as the collector service accumulates live measurements.
+
+The same principle sets every other family's limits, and where it cannot be satisfied, the question is not offered at all. `15-QUESTION-CATALOG.md` states the limit and the reasoning for each question type individually.
 
 ## 5. The complete safety rule set
 
@@ -63,16 +67,16 @@ The core anti-manipulation rule: **a market must never be worth more to cheat th
 | --- | --- | --- |
 | Only irreversible events | Graduation cannot be undone; listed families only | Pump-and-revert manipulation |
 | No price questions | Not listed at all | Averaging and snapshot games |
-| Open-interest cap | α × forcing cost, live, at every mint/split | Buying the outcome to collect the other side |
-| Halt on completion | Any instruction seeing `complete == true` freezes the market | Trading on a decided result |
+| Market size limit | 10% of the amount the token still needs, re-checked live whenever shares are created | Paying to force the outcome and collecting more than it cost |
+| Halt on completion | Any instruction that sees the outcome has happened freezes the market | Trading on a decided result |
 | Close gap | Trading stops 5 minutes before every deadline | Last-second deadline games |
-| Curve guards | Orders self-void outside their progress range, checked at match | Makers picked off by faster curve readers |
-| Creator barred | The creator address from the curve account cannot trade that token's open markets | The best-informed insider trading their own token |
+| Progress guards | Orders self-void outside the progress range their owner set, checked at match | Makers picked off when the token's state jumps |
+| Creator barred | The creator address read from the launchpad cannot trade that token's open markets | The best-informed insider trading their own token |
 | Short windows | Graduation markets run 5 to 15 minutes by default | Insiders stalling graduations profitably (blocking rises from ~1.7% at 5-minute windows to ~9.1% at 50-minute windows in simulation) |
 | Creator-written rug markets only | The creator is the only possible writer of large rug markets | Anyone betting on a rug they can trigger |
 | Small caps on open dump markets | Default $50 | Second-wallet self-dealing bounded to pocket change |
 | Fail closed | Unparseable launchpad data voids the market at $0.50 per share | Wrong settlements after launchpad changes |
-| Conservative price floor | Pyth price minus confidence for cap conversion | Cap inflation via oracle noise |
+| Conservative price floor | Feed price minus its confidence band when converting the size limit to USDC | Size limits inflated by price-feed noise |
 
 **Residual risk, disclosed rather than hidden:** bundled insider wallets cannot be identified on-chain. They can still block a few percent of would-be graduations and profit on NO. Burbit contains this with short windows, caps, and disclosure in the app, and prices it into the published base rates.
 
@@ -83,7 +87,7 @@ For bucketed questions (timing, races), Burbit uses **complete sets** over N mut
 - `split_set`: $1.00 mints one share of **every** outcome. `merge_set`: a full set burns back into $1.00. The vault invariant generalizes: collateral = sets outstanding × $1.00, and exactly one outcome per set pays.
 - Each outcome has its own book in the market's block pool. A **mint** occurs when crossing buy orders across all N outcomes sum to ≥ $1.00; a **merge** when sell orders sum to ≤ $1.00; the matching engine assembles these multi-leg crossings the same way the binary engine assembles pairs.
 - **Convert**: holding 1 NO-equivalent on outcome i (that is, being short i) is identical to holding 1 YES on every other outcome. The `convert` instruction lets a holder surrender shares of any k outcomes plus receive $ (k − 1) and shares of the rest, keeping the books arbitraged so all outcome prices sum to ~$1.00. The app's single NO button on a bucket buys the other buckets in one transaction.
-- The cap for a race is set by the **cheapest** forcing cost in the group.
+- The size limit for a race is set by the **cheapest** token in the group to force.
 
 ## 7. Creator-written rug markets
 

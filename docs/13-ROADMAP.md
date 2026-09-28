@@ -9,7 +9,7 @@ The order of construction, what exists already, phase gates, and the planned ext
 | Asset | Status |
 | --- | --- |
 | `curvepm/burbit_book.py` | Reference order book: intents, settlement kinds, priority, fees, guards, cap, auction, halt, resolve, redeem; randomized invariant tests. To be extended to seats/blocks, USDC units, sweeping and closing per these docs |
-| `rust/burbit-core` | Curve parsing, forcing cost, caps, settlement checks in no_std integer math, cross-checked against the Python model |
+| `rust/burbit-core` | Launchpad state parsing, size-limit and settlement checks in no_std integer math, cross-checked against the Python model |
 | `curvepm/pump.py`, `lifecycle.py`, `manip.py`, `analysis.py` | Calibrated curve simulation, manipulation experiments, base rates |
 | `curvepm/collector.py` | Live base-rate collector over RPC |
 
@@ -25,7 +25,7 @@ Goal: a devnet demo trading real launches end to end.
 6. **Keepers**: creator, uncross/halt/resolve, sweep/close in one binary with role flags.
 7. **Indexer + API**: events consumer, launches tracker, the REST/WS subset the app needs (launches, markets, book, trades, account).
 8. **App**: launch feed, market screen, quick bet, set odds, positions, claim; session keys + sponsor service.
-9. **Devnet launch** with mirrored curve accounts; demo: live launches, real trades, automatic settlement seconds after graduation.
+9. **Devnet launch** with mirrored launchpad state accounts; demo: live launches, real trades, automatic settlement seconds after graduation.
 
 Exit gate: differential soak green; a full market lifecycle (create → auction → trade → graduate → resolve → sweep → close) reproducible on devnet in under 15 minutes with rent conserved to zero.
 

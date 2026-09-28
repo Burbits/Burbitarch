@@ -59,7 +59,7 @@ Fees are applied on top of these moves (section 6). Note the deep property: **MI
 | | FOK | Fills entirely immediately or not at all |
 | | POST_ONLY | Rejected if any part would fill immediately; for makers who only want to rest and earn rebates |
 | `expiry_slot` | 0 = none | The order is void once the chain passes this slot; a dead-man switch so unrefreshed quotes cannot be picked off. Expired orders are skipped and lazily removed during matching, and cancellable by anyone via `prune_expired` |
-| `guard_min`, `guard_max` | basis points of curve progress; (0, 10000) = no guard | The **curve guard**: the order is valid only while the token's live curve progress is inside [min, max]. Checked against the launchpad account passed into every matching transaction; a guard-violating resting order is voided and its escrow released before anyone can hit it |
+| `guard_min`, `guard_max` | basis points of progress; (0, 10000) = no guard | The **progress guard**: the order is valid only while the token's live progress is inside [min, max]. Checked against the launchpad account passed into every matching transaction; a guard-violating resting order is voided and its escrow released before anyone can hit it |
 | `client_id` | u64 | Caller's correlation id, echoed in events |
 
 ## 5. The matching algorithm (normative)
@@ -122,7 +122,7 @@ Worked fee examples: `09-FEES-AND-ECONOMICS.md`.
 
 ## 8. Worked example, end to end
 
-Market: "Will token X graduate within 15 minutes?", created at 70% curve progress. Forcing cost 8.62 SOL; with SOL floored at $150, cap = 50% × $1,293 = $646 of open interest.
+Market: "Will token X graduate within 15 minutes?", created at 70% progress. Forcing cost 8.62 SOL; with SOL floored at $150, cap = 50% × $1,293 = $646 of open interest.
 
 **Auction (60 s).** Orders collected:
 

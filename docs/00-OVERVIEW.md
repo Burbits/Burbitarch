@@ -17,9 +17,9 @@ Burbit is a prediction market for tokens that are still trading on bonding curve
 
 Users trade **YES** and **NO** shares on these questions through a **real central limit order book (CLOB)**. Every share pair is backed one-to-one by USDC locked in the market's vault. A winning share redeems for exactly $1.00. A losing share redeems for nothing.
 
-**Burbit builds no bonding curve, no AMM, no pool and no launchpad, and never touches any of them.** Tokens launch, trade and graduate on existing launchpads; Burbit's entire relationship to that machinery is **reading its public on-chain state**. The curve exists in this documentation only because settling and pricing predictions requires understanding exactly how it behaves. Burbit reads each launchpad's public accounts, attaches yes/no conditions to each launch, validates every trade against the token's live curve state, and settles each market directly from that state. There is no data provider, no oracle committee, and no human resolver for the core market families. The answer is read from the chain in the same instruction that pays it out.
+**Burbit builds no bonding curve, no AMM, no pool and no launchpad, and never touches any of them.** Tokens launch, trade and graduate on existing launchpads; Burbit's entire relationship to that machinery is **reading its public on-chain state**. The curve exists in this documentation only because settling and pricing predictions requires understanding exactly how it behaves. Burbit reads each launchpad's public accounts, attaches yes/no conditions to each launch, validates every trade against the token's the launchpad's live state, and settles each market directly from that state. There is no data provider, no oracle committee, and no human resolver for the core market families. The answer is read from the chain in the same instruction that pays it out.
 
-Because integration is read-only, **Burbit can integrate any bonding-curve launchpad**: supporting a new one means writing one reader (a strict parser for that launchpad's public account layout, plus its progress and forcing-cost math) and registering it. No permission, partnership or contract call into the launchpad is ever needed, and nothing else in the protocol changes per venue.
+Because integration is read-only, **Burbit can integrate any bonding-curve launchpad**: supporting a new one means writing one reader (a strict parser for that launchpad's public account: is it genuine, has the outcome happened, how far along is it, who is the creator) and registering it. No permission, partnership or contract call into the launchpad is ever needed, and nothing else in the protocol changes per venue.
 
 ## 2. What makes Burbit different
 
@@ -27,11 +27,11 @@ Because integration is read-only, **Burbit can integrate any bonding-curve launc
 
 2. **Shares are created and destroyed by traders themselves.** When a YES buyer and a NO buyer agree on a price, the program locks their combined $1.00 and mints a new share pair between them. When a YES seller and a NO seller meet, their pair dissolves back into $1.00. No market maker is required to start a market, and anyone can always exit.
 
-3. **Settlement is trustless and instant.** The program parses the token's bonding-curve account on its launchpad inside the settlement instruction. The moment the curve's completion flag is true, the market halts and YES is final. No proposal, no bond, no challenge window, no vote, no waiting.
+3. **Settlement is trustless and instant.** The program parses the token's bonding-launchpad state account on its launchpad inside the settlement instruction. The moment the curve's completion flag is true, the market halts and YES is final. No proposal, no bond, no challenge window, no vote, no waiting.
 
-4. **Markets cannot be profitably gamed.** Each market's open interest is capped below the cost of forcing the outcome, and that cost is computed on-chain from the token's live curve state at every mint.
+4. **Markets cannot be profitably gamed.** Each market's size is capped below what it would cost to force its outcome, using a figure read straight from the launchpad and re-checked every time shares are created.
 
-5. **Makers are protected by curve guards.** Every order can carry the range of curve progress it is valid for. If the token's curve jumps outside that range, the order voids itself before anyone can hit it.
+5. **Makers are protected by progress guards.** Every order can carry the range of progress it is valid for. If the token's curve jumps outside that range, the order voids itself before anyone can hit it.
 
 6. **Fully on-chain and crankless.** Matching, settlement of fills, and maker crediting all happen atomically inside the same transaction. There is no event queue to consume, no settlement crank, no operator whose engine must stay honest and online. The order book and every trader's balances live inside the market account, so a taker's transaction already has write access to every maker it fills.
 
@@ -106,10 +106,10 @@ Launchpads (existing, public on-chain accounts)
 | **Intent** | One of buy YES, sell YES, buy NO, sell NO |
 | **Maker** | The order resting on the book when a trade happens |
 | **Taker** | The incoming order that crosses and executes against resting orders |
-| **Curve guard** | A progress range attached to an order; the order voids outside it |
+| **Progress guard** | A progress range attached to an order; the order voids outside it |
 | **Open interest** | Pairs outstanding × $1.00; equals the pair collateral in the vault |
 | **Forcing cost** | What it would cost an attacker to force the market's outcome on the launchpad |
-| **Cap** | The open-interest ceiling, α × forcing cost, recomputed from live curve state |
+| **Cap** | The market's size ceiling: α × the amount the token still needs, re-read live |
 | **Reader** | Program code that parses one launchpad's curve-account layout, read-only |
 | **Graduation** | The launchpad marking a token's curve complete and migrating it to an open pool |
 | **Halt** | Trading frozen; all resting orders released back to free balances |
@@ -137,4 +137,4 @@ Launchpads (existing, public on-chain accounts)
 | `12-TESTING.md` | The reference implementation, differential testing, invariants, adversarial cases |
 | `13-ROADMAP.md` | Build order, phases, and the v2 signed-order gateway |
 | `14-BONDING-CURVE-BEHAVIOR.md` | The complete behavioral study of bonding-curve tokens: venue mechanics, lifecycle statistics, actors, signals, settlement-quality grades |
-| `15-QUESTION-CATALOG.md` | Every question type Burbit can run: settlement rule, forcing analysis, offerability class, hypothesis, and the automated listing playbook |
+| `15-QUESTION-CATALOG.md` | Every question type Burbit can run: settlement rule, who could force it and at what cost, offerability class, hypothesis, and the automated listing playbook |

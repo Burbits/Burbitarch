@@ -43,14 +43,14 @@ Every state a market can be in, every transition, who triggers it, and what is a
 
 ## 2. Creation
 
-`create_market` is permissionless and normally called by the market-creator keeper the moment a token hits a listing milestone (default: 70% curve progress for graduation questions; see `05-MARKETS-AND-SETTLEMENT.md` for per-family milestones).
+`create_market` is permissionless and normally called by the market-creator keeper the moment a token hits a listing milestone (default: 70% progress for graduation questions; see `05-MARKETS-AND-SETTLEMENT.md` for per-family milestones).
 
 The program, in one instruction:
 
-1. Verifies the passed curve account is owned by a registered launchpad program, matches the expected address for the mint, parses under the registered reader, is not complete, and has reached the milestone.
-2. Reads the Pyth SOL/USD price (staleness ≤ 30 slots, price minus confidence as the floor) and computes the open-interest cap: `cap = α × forcing_cost(curve) × sol_usd_floor`.
+1. Verifies the passed launchpad state account is owned by a registered launchpad program, matches the expected address for the mint, parses under the registered reader, is not complete, and has reached the milestone.
+2. Reads the amount the token still needs from its launchpad account, and (for SOL-denominated tokens) the SOL/USD price with a conservative floor, then sets the market size limit: `cap = α × amount_still_needed × price_floor`.
 3. Derives and allocates the Market account (header plus initial block pool) and the market vault, recording the keeper as rent payer.
-4. Records the token creator's address from the curve account (barred from trading this token's open markets).
+4. Records the token creator's address from the launchpad state account (barred from trading this token's open markets).
 5. Sets times: `open = now`, `uncross_at = open + auction_length` (default 60 s), `close_at = deadline − close_gap` (default 300 s), and the question deadline.
 6. Sets state = **Auction** and emits the MarketCreated event.
 
@@ -60,8 +60,8 @@ A brand-new market has an empty book. Opening straight into continuous trading w
 
 - For the auction window (default 60 s), `place_order` accepts and escrows orders but matches nothing. Cancels are allowed. Split and merge are allowed.
 - Anyone may call `uncross` once `now ≥ uncross_at`. The instruction:
-  1. Re-parses the curve account. If the token has already graduated, the market halts instead (section 5) and every escrow is released.
-  2. Voids any order whose curve guard excludes live progress or whose expiry has passed, releasing escrow.
+  1. Re-parses the launchpad state account. If the token has already graduated, the market halts instead (section 5) and every escrow is released.
+  2. Voids any order whose progress guard excludes live progress or whose expiry has passed, releasing escrow.
   3. Computes the **clearing price**: the price that matches the most volume; ties broken by the smaller buy/sell imbalance, then by the lower price.
   4. Fills every bid at or above the clearing price and every ask at or below it, **all at the clearing price**, best price first, then earliest. Fills settle exactly as in continuous trading (mint, transfer or merge, per the intent table in `03-ORDER-BOOK-SPEC.md`), the fee (2%, no rebate) is charged to the bid side, and pairs minted respect the cap: if the cap binds, the latest-priority crossing orders are the ones left unfilled.
   5. Rests all unfilled remainders on the book and sets state = **Continuous**. If nothing crosses, the market simply opens with whatever rests.
@@ -71,11 +71,11 @@ Why it matters: arriving first in the auction earns nothing, so there is no bot 
 
 ## 4. Continuous trading
 
-Normal operation per `03-ORDER-BOOK-SPEC.md`. Every `place_order` transaction carries the token's live curve account, so the market's view of the token is never staler than the current transaction:
+Normal operation per `03-ORDER-BOOK-SPEC.md`. Every `place_order` transaction carries the token's live launchpad state account, so the market's view of the token is never staler than the current transaction:
 
 - If the parse shows `complete == true`, the instruction halts the market on the spot instead of trading, and records the completion slot.
 - Guard-violated and expired resting orders are voided as matching encounters them, and `prune_expired` cleans the rest.
-- Mints re-check the cap against live forcing cost every time.
+- Mints re-check the cap against the launchpad's live state every time.
 
 ## 5. Halt
 
@@ -83,7 +83,7 @@ Trading freezes on the first of:
 
 1. **Graduation observed**: any instruction that parses the curve and sees `complete == true`, or an explicit `halt` call by a keeper. The observing slot is recorded as `completion_slot` (used by timing-bucket markets). YES-side holders are motivated to see this recorded fast, and the keeper fee pays for the race, so the recorded slot sits within seconds of the true completion.
 2. **Close time**: `now ≥ close_at` (five minutes before the deadline), via `halt`. The gap kills last-second games around the deadline.
-3. **Reader failure**: the curve account no longer parses (layout changed, account closed unexpectedly mid-life in a way the reader does not recognize). The market halts and is flagged for **void** resolution.
+3. **Reader failure**: the launchpad state account no longer parses (layout changed, account closed unexpectedly mid-life in a way the reader does not recognize). The market halts and is flagged for **void** resolution.
 
 On halt, every resting order's escrow is released to seat free balances in-place (a bounded walk of both trees, resumable across transactions via `halt_continue` if a book is unusually deep). After halt: no trading, no splits; merges remain allowed so paired holders can exit to cash immediately without waiting for resolution.
 
@@ -126,10 +126,10 @@ On void: halt semantics (all escrow released), outcome = VOID, every share redee
 
 | t | Event |
 | --- | --- |
-| 0:00 | Token hits 70% progress; keeper creates the market; Auction opens; cap set from live forcing cost |
+| 0:00 | Token hits 70% progress; keeper creates the market; Auction opens; size limit set from live state |
 | 0:00 to 1:00 | Orders collect; cancels allowed; nothing matches |
 | 1:00 | Keeper uncrosses at the single clearing price; Continuous begins |
-| 1:00 to ~9:00 | Trading tracks the curve; guards void stale quotes as progress moves; cap tightens as forcing gets cheaper |
+| 1:00 to ~9:00 | Trading tracks the token; guards void stale quotes as progress moves; the size limit tightens as forcing gets cheaper |
 | ~9:00 | Curve completes on the launchpad; the next Burbit instruction halts the market and records the slot |
 | ~9:01 | Keeper resolves YES |
 | ~9:01 onward | Holders redeem; sweep keeper pays out every remaining seat |

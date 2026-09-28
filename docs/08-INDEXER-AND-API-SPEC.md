@@ -84,7 +84,7 @@ Heartbeat: server `ping` every 10 s; client replies `pong` within 10 s or is dro
 
 1. `GET /markets?state=continuous` (or the `launches` channel) to find targets; read `config` for ticks and fees.
 2. Maintain books via the `book` channel; maintain own state via the `account` channel.
-3. Place quotes by building `place_order` transactions directly against the program (the SDK wraps this), with curve guards tight around current progress and `expiry_slot` a few hundred slots out as a dead-man switch; refresh by `cancel_all` + re-place in one transaction.
+3. Place quotes by building `place_order` transactions directly against the program (the SDK wraps this), with progress guards tight around current progress and `expiry_slot` a few hundred slots out as a dead-man switch; refresh by `cancel_all` + re-place in one transaction.
 4. There is no off-chain order gateway in v1 and therefore no API key, no HMAC, and no rate limit on trading itself: the chain is the rate limit. The only authenticated surfaces are the private `account` channel and the sponsor endpoint.
 
 ## 5. SDK

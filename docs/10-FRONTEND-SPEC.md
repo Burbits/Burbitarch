@@ -23,7 +23,7 @@ Every screen, every flow, and the interaction grammar of the Burbit app. The app
 
 ### 3.1 Launch feed (home)
 
-- A live-sorted list (WebSocket `launches` channel) of tokens approaching graduation. Each row: token image/symbol/name, launchpad badge, **curve progress bar** with live percentage, SOL in curve, age, creator flags (bonded badge if a rug market exists), and, when a Burbit market is open, **the live YES price as odds** ("Graduates in 15 min: 12%") with inline **Yes/No quick-buy buttons** and the market countdown.
+- A live-sorted list (WebSocket `launches` channel) of tokens approaching graduation. Each row: token image/symbol/name, launchpad badge, **progress bar** with live percentage, SOL in curve, age, creator flags (bonded badge if a rug market exists), and, when a Burbit market is open, **the live YES price as odds** ("Graduates in 15 min: 12%") with inline **Yes/No quick-buy buttons** and the market countdown.
 - Filters: progress band, launchpad, has-market, bonded-only. Sort: progress, volume, newest.
 - Rows animate on progress ticks and flip to a "Graduated" state with a link to the resolved market.
 
@@ -31,17 +31,17 @@ Every screen, every flow, and the interaction grammar of the Burbit app. The app
 
 Layout, desktop (single column stacked on mobile with the trade panel as a bottom sheet):
 
-- **Header**: question ("Will $TOKEN graduate before 18:00?"), token identity, market state chip (Auction with countdown / Live / Halted / Resolved YES/NO/Void), deadline countdown, and the live **curve progress bar** under it, because the underlying is always visible context.
+- **Header**: question ("Will $TOKEN graduate before 18:00?"), token identity, market state chip (Auction with countdown / Live / Halted / Resolved YES/NO/Void), deadline countdown, and the live **progress bar** under it, because the underlying is always visible context.
 - **Chart**: YES price (probability) over time, 1s to 1m resolutions from `candles`; the headline number is the bid-ask midpoint; last-trade fallback when the spread exceeds 10¢.
 - **Order book**: bids and asks around the spread, price in cents, size in shares and dollars, cumulative depth shading; the user's own resting orders marked inline with one-tap cancel.
 - **Trade panel** (sticky right rail / bottom sheet):
   - Tabs **Buy | Sell**, outcome toggle **YES | NO**, mode **Quick | Set odds**.
   - **Quick** (IOC at best price with slippage bound): a dollar input with chips (+$1, +$5, +$20, Max), live estimate of shares, average price and **"To win $X"**, one button. During Auction the panel switches to "Join the opening auction" with a limit-price field and the note that all auction fills clear at one price.
-  - **Set odds** (limit): price stepper in cents (fine ticks unlock below 5¢/above 95¢), shares or dollar input, optional expiry (30 s / 2 min / 5 min / custom), optional **curve guard** ("cancel if the curve passes 85%") pre-filled to sensible bounds, post-only toggle for quoters.
+  - **Set odds** (limit): price stepper in cents (fine ticks unlock below 5¢/above 95¢), shares or dollar input, optional expiry (30 s / 2 min / 5 min / custom), optional **progress guard** ("cancel if the curve passes 85%") pre-filled to sensible bounds, post-only toggle for quoters.
   - Fees shown inline: "Fee 2% ($0.40); part of this goes to the sellers of the shares you take."
   - Confirmation is inline (no modal): the button becomes "Bought 100 YES @ 21¢" on the fill event.
 - **Position strip**: the user's YES/NO shares, average cost, live value at mid, unrealized PnL, buttons Sell, Merge (enabled when holding both sides), and, post-resolution, **Claim**.
-- **Tabs**: Trades (live tape), Holders (top YES and NO holders by size), Activity (all order events), Rules (the exact settlement rule, the curve account address, the deadline and close time, the cap and current open interest, plus the residual-risk disclosure for the family), About (token metadata and links).
+- **Tabs**: Trades (live tape), Holders (top YES and NO holders by size), Activity (all order events), Rules (the exact settlement rule, the launchpad state account address, the deadline and close time, the cap and current open interest, plus the residual-risk disclosure for the family), About (token metadata and links).
 - **Rug protection block** on tokens with a creator-written rug market: bonded badge, coverage ratio, YES price as "insurance cost", one-tap buy.
 
 ### 3.3 Positions (portfolio)

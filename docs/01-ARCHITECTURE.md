@@ -9,7 +9,7 @@ How every component of Burbit is built and how they connect. Read `02-CORE-CONCE
 1. **The program is the exchange.** Matching, custody, settlement and resolution are all enforced by one on-chain program. There is no off-chain matching engine in v1, no operator with special powers over trades, and no component that can lose user funds by being wrong or offline.
 2. **Crankless, atomic settlement.** The order book and every trader's balances live inside the market account. A transaction that fills orders already has write access to every maker it touches, so fills credit makers in the same instruction. There is no event queue, no consume-events crank, and no window in which a fill exists but its money has not moved.
 3. **Everything off-chain is permissionless and replaceable.** Keepers advance lifecycles for on-chain fees anyone can earn. The indexer serves data anyone could re-derive from the chain. If Burbit-the-company disappears, markets still halt, resolve, pay out and close.
-4. **Read the launchpad, never trust anyone about it, never touch it.** Burbit builds no curve, no AMM and no pool; its only relationship to any launchpad is parsing that launchpad's public accounts. Every instruction that depends on the token's state takes the token's launchpad curve account as an input and parses it with a strict reader. Unparseable data fails closed into a void, never into a wrong settlement. Because the integration surface is a read-only reader, any bonding-curve launchpad can be supported by adding one reader to the registry, with no change to markets, matching, custody or settlement.
+4. **Read the launchpad, never trust anyone about it, never touch it.** Burbit builds no curve, no AMM and no pool; its only relationship to any launchpad is parsing that launchpad's public accounts. Every instruction that depends on the token's state takes the token's launchpad launchpad state account as an input and parses it with a strict reader. Unparseable data fails closed into a void, never into a wrong settlement. Because the integration surface is a read-only reader, any bonding-curve launchpad can be supported by adding one reader to the registry, with no change to markets, matching, custody or settlement.
 5. **The admin plane cannot touch funds.** Admin keys can pause new activity, register readers, and tune parameters behind a timelock. No admin instruction can move vault balances, mutate seats, or set outcomes.
 
 ## 2. Component map
@@ -24,8 +24,8 @@ How every component of Burbit is built and how they connect. Read `02-CORE-CONCE
 | **Market vault** | SPL token account per market, program-authority PDA | Holds all USDC in the market: escrow, pair collateral, fees |
 | **Session key registry** | PDA per user | Scoped trading keys with expiries |
 | **Bond accounts** | PDA per creator-written rug market | Creator custody and bond state |
-| **SOL/USD price account** | Pyth price feed (external, read-only) | Converts SOL-denominated forcing cost into the USDC-denominated cap; read with staleness and confidence checks |
-| **Launchpad curve accounts** | External, read-only | The ground truth every market is about |
+| **SOL/USD price account** | Pyth price feed (external, read-only) | Converts SOL-denominated amounts into the USDC-denominated market size limit; read with staleness and confidence checks |
+| **Launchpad launchpad state accounts** | External, read-only | The ground truth every market is about |
 
 ### 2.2 Off-chain
 
@@ -44,22 +44,22 @@ How every component of Burbit is built and how they connect. Read `02-CORE-CONCE
 
 ### 3.1 Listing a token
 
-1. The indexer streams every supported launchpad program and records each new token: mint, curve account address, creator, creation slot.
-2. It tracks curve progress, reserves and creator balances in real time and publishes them in the launch feed.
-3. When a token crosses a listing milestone (for example 70% of its curve sold), the market-creator keeper submits `create_market`. The program independently re-parses the curve account, verifies the milestone, computes the open-interest cap, allocates the market account and vault, and opens the market in the Auction state.
+1. The indexer streams every supported launchpad program and records each new token: mint, launchpad state account address, creator, creation slot.
+2. It tracks progress, reserves and creator balances in real time and publishes them in the launch feed.
+3. When a token crosses a listing milestone (for example 70% of its curve sold), the market-creator keeper submits `create_market`. The program independently re-parses the launchpad state account, verifies the milestone, computes the open-interest cap, allocates the market account and vault, and opens the market in the Auction state.
 4. Nothing about listing requires the launchpad's cooperation. Readers parse public account data that anyone can fetch.
 
 ### 3.2 Trading
 
 1. The user's wallet connects to the app. On first trade the app registers a **session key**: an instruction signed once by the wallet that whitelists a browser-held keypair allowed to place and cancel orders (never withdraw) until an expiry the user chose.
 2. The user taps a price. The app builds `place_order`, signs it with the session key, and sends it through the **fee-payer service**, which co-signs as the transaction fee payer. The user sees no wallet popup and pays no network fee. The trade lands within a slot (about 400 ms).
-3. `place_order` runs entirely in-program: it parses the live curve account (halting the market on the spot if the token has graduated), voids any resting order whose curve guard the current progress violates, locks the taker's escrow into their seat, matches against the book with price-time priority, settles each fill atomically (transfer, mint or merge; see `03-ORDER-BOOK-SPEC.md`), charges the taker fee, credits the maker rebate, and rests any remainder.
+3. `place_order` runs entirely in-program: it parses the live launchpad state account (halting the market on the spot if the token has graduated), voids any resting order whose progress guard the current progress violates, locks the taker's escrow into their seat, matches against the book with price-time priority, settles each fill atomically (transfer, mint or merge; see `03-ORDER-BOOK-SPEC.md`), charges the taker fee, credits the maker rebate, and rests any remainder.
 4. Fills are emitted as structured events through the program's own log instruction (a self-invoke carrying typed event data), which the indexer consumes to update books, trades and positions in real time.
 
 ### 3.3 Settlement and payout
 
 1. The moment the token graduates on its launchpad, the next instruction that touches the market, or a keeper's explicit `halt`, freezes trading, records the completion slot, and releases every resting order's escrow back to seat free balances.
-2. `resolve` reads the curve account (or the creator's token account, for dump questions) and fixes the outcome. YES if the event happened before the deadline, NO if the deadline passed without it, VOID if the account no longer parses.
+2. `resolve` reads the launchpad state account (or the creator's token account, for dump questions) and fixes the outcome. YES if the event happened before the deadline, NO if the deadline passed without it, VOID if the account no longer parses.
 3. Winners call `redeem` for $1.00 per share, or the **sweep keeper** pushes every seat's payout and free balance back to each owner's USDC token account so nobody has to return for dust.
 4. When every seat is settled and swept, `close_market` deallocates everything and returns all rent to the recorded payers.
 
@@ -79,7 +79,7 @@ The deciding facts:
 
 - Burbit's markets live minutes, with bursty flow that the opening auction absorbs. They do not need microsecond matching; they need trustless settlement at the exact moment a curve completes, which the on-chain path checks atomically inside every fill.
 - The user-experience gap closes with session keys plus sponsored fees: one tap, no popup, no visible cost, sub-second confirmation.
-- Makers are protected primarily by curve guards evaluated at match time, which only the on-chain path can enforce atomically, and secondarily by per-order expiry slots that act as dead-man switches.
+- Makers are protected primarily by progress guards evaluated at match time, which only the on-chain path can enforce atomically, and secondarily by per-order expiry slots that act as dead-man switches.
 - Everything custodial and economic is identical between v1 and the v2 gateway, so nothing built for v1 is thrown away: the gateway is one added instruction (verify an ed25519-signed order via the instructions sysvar, then run the same matching path) plus off-chain relay infrastructure, shipped when volume justifies it. See `13-ROADMAP.md`.
 
 ## 5. The market account: one account, three structures

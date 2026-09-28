@@ -19,6 +19,8 @@ Nine minutes later the curve stalls at 88% and the deadline passes. The market r
 
 That's the whole product. Everything below is how it actually works underneath.
 
+**One thing to fix in your head before reading on.** The launchpad is not part of Burbit; it is the **event source**, the way a football match is the event source for a sports market. Burbit does not launch tokens, does not run a curve, a pool or an AMM, does not price tokens and does not model how they trade. It watches a launchpad's public accounts, sees whether the outcome happened, and pays out accordingly. The only thing Burbit builds is the market: the order book, the shares, the vault and the settlement. That is also why Burbit works with **any** launchpad: supporting a new one means teaching it to read one more kind of account, and nothing else changes.
+
 ## 2. What money is here: USDC on Solana, concretely
 
 All trading, all collateral, and all payouts are in **USDC**, which on Solana is an ordinary SPL token (mint `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`, 6 decimals, so $1.00 = 1,000,000 base units). Your wallet holds USDC in your associated token account (ATA), the standard per-wallet USDC account every Solana wallet manages for you.
@@ -100,7 +102,7 @@ One book, four possible settlements, and the price you see is always coherent: Y
 What happens in the half-second after Ade taps "Buy 20 NO at 93¢":
 
 1. Her session key (a limited key her wallet authorized once: it can place and cancel orders, it can never withdraw) signs a `place_order` transaction; Burbit's fee-payer service pays the ~$0.001 network fee, so she signs nothing visibly and pays no gas.
-2. The program checks the market is live, and **parses $WOOF's live bonding-curve account, which is passed inside the same transaction**. If the token had already graduated, this very transaction would halt the market instead of trading. This is also where curve guards fire: any resting order whose "only valid while curve is between X% and Y%" range no longer matches reality is voided and refunded before it can be hit.
+2. The program checks the market is live, and **parses $WOOF's live bonding-launchpad state account, which is passed inside the same transaction**. If the token had already graduated, this very transaction would halt the market instead of trading. This is also where progress guards fire: any resting order whose "only valid while curve is between X% and Y%" range no longer matches reality is voided and refunded before it can be hit.
 3. Her cost, 20 × $0.93 = $18.60, plus the maximum fee (2%, $0.372), moves from her free balance (topped up from her wallet if needed, in the same transaction) into her locked balance.
 4. The matcher walks the best-priced opposing orders, oldest first at each price. Say it finds Bola's resting YES bid at 7¢ for 100: prices sum to $1.00, so this is a **mint** for 20 shares. The vault's pair bucket grows by $20.00 (her $18.60 + his $1.40), her seat gains `no_free += 20`, his gains `yes_free += 20`, his order's remaining size drops to 80.
 5. **She is the taker** (her order crossed and executed immediately); **he is the maker** (his order was resting). She pays the taker fee: 2% × $18.60 = $0.372. He pays nothing and receives 20% of her fee ($0.0744) as a rebate, credited to his `usdc_free` on the spot. The remaining 80% accrues to the market's fee bucket.
@@ -125,7 +127,7 @@ A market stops trading at the FIRST of two events, and this is "when the order b
 
 So no order "survives" resolution and nobody's resting order can be filled against a known outcome. The book empties, then the outcome gets decided.
 
-**Resolution** happens seconds later: a keeper (or anyone; the instruction is permissionless) calls `resolve`, and the program reads the answer directly from the curve account: graduated before the deadline → YES; deadline passed without it → NO. No jury, no vote, no data provider.
+**Resolution** happens seconds later: a keeper (or anyone; the instruction is permissionless) calls `resolve`, and the program reads the answer directly from the launchpad state account: graduated before the deadline → YES; deadline passed without it → NO. No jury, no vote, no data provider.
 
 **Then the payout, and here is the part that makes the whole system make sense.** Suppose NO won and the vault holds $500 of pair collateral for 500 pairs.
 

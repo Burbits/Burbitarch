@@ -6,18 +6,24 @@ The complete behavioral study of bonding-curve tokens on Solana launchpads: how 
 
 ---
 
-## 1. The primary venue: pump.fun mechanics, precisely
+## 1. The venue: what it does and what we observe
 
-### 1.1 The curve
+### 1.1 The shape of a launch
 
-- Constant-product virtual AMM (x·y = k). At creation: **virtual reserves 30 SOL × 1,073,000,000 tokens**; **793,100,000 tokens actually for sale** on the curve (real token reserves); total supply 1,000,000,000, with ~206.9M reserved for the migration pool. Real SOL reserves start at 0.
-- Buys push virtual SOL up and token reserves down along the curve; sells reverse it. Spot price = virtual_sol_reserves / virtual_token_reserves; SOL market cap = price × total supply.
-- **Graduation**: when net buying has deposited **~85 SOL** (virtual SOL 30 → 115; on-chain, the buy that makes `real_token_reserves == 0` sets `complete = true`). In USD terms this floats with SOL (~$69k market cap historically); **the ~85 SOL raise is the on-chain constant and the only number settlement should ever reference**. Graduation is automatic and irreversible; ~79 SOL plus ~200M tokens move into the destination pool.
-- **Migration**: to the launchpad's own AMM since March 2025 (previously an external AMM with a 6 SOL fee and delays; now instant, zero fee, permissionless `migrate` instruction, **LP tokens burned**, so post-graduation liquidity cannot be pulled).
+Burbit does not implement any of this; it watches it. Stated as an observer would:
 
-### 1.2 The account Burbit reads
+- A token launches with a fixed supply and a fixed amount it must take in from buyers before it "finishes". On the dominant venue that amount is about **85 SOL** of net buying.
+- While it is filling, buying moves it forward and selling moves it back, so **progress is not monotonic**: a token at 80% can fall to 60%. That single fact shapes how every milestone question in `15-QUESTION-CATALOG.md` must be phrased ("ever reaches X before T", never "is at X").
+- When the required amount has been taken in, the token **finishes**: the venue marks it complete and moves it to an open market. This is automatic, permissionless and **irreversible**, which is what makes it the ideal thing to settle on.
+- After that, the token trades on an ordinary open market. Liquidity there cannot be pulled by the creator (the position is burned at migration), so later collapses are ordinary selling, not liquidity theft.
 
-Per-token PDA `["bonding-curve", mint]` owned by program `6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P`: 8-byte discriminator, then `virtual_token_reserves`, `virtual_sol_reserves`, `real_token_reserves`, `real_sol_reserves`, `token_total_supply` (all u64), `complete` (bool), `creator` (Pubkey), plus later-appended fields including `is_mayhem_mode`, `is_cashback_coin`, `quote_mint`, `creator_fee_bps`, `is_holder_reward`. Progress in percent = `100 − ((real_token_reserves − 206,900,000×10^6_units_adjusted) × 100 / 793,100,000-scale)`; equivalently, graduation is exactly the curve's token account reaching its 206.9M residual. The program has renamed fields across upgrades (for example SOL reserves generalizing to quote reserves for non-SOL curves), which is why Burbit's readers parse by semantics with strict validation and fail closed (`05-MARKETS-AND-SETTLEMENT.md`).
+The USD framing people quote (a market cap around $69k) floats with the price of SOL. **The amount taken in is the on-chain constant, and it is the only figure settlement or size limits ever reference.**
+
+### 1.2 What Burbit reads, and nothing more
+
+The venue keeps one public account per token. Burbit's reader locates it at the address the venue derives for that token, checks it is owned by the venue's program, checks its type marker, and reads four things: **has it finished**, **how much has it taken in and how much is still needed**, **who created it**, and (where the venue offers variants) **what currency it is denominated in and which launch options were chosen**. Everything else in the account is ignored.
+
+Two consequences worth stating: progress is a number derived from the amounts, not a model we run; and venues rename or append fields across upgrades, which is why readers parse by meaning, validate strictly, and **fail closed into a void rather than guess** (`05-MARKETS-AND-SETTLEMENT.md`).
 
 ### 1.3 Fees and features timeline (each shift moved behavior)
 
@@ -64,8 +70,8 @@ Market share as of late 2026: the primary venue holds roughly 80 to 95% of launc
 | 0 to ~20% | The death zone: the overwhelming majority of launches stall and die here within minutes; early trading intensity in the first few tens of transactions is the single strongest graduation predictor |
 | ~25 to 95% (20 to 80 virtual SOL) | **The dump zone**: coordinated creator/insider dump events cluster here, after liquidity forms but before graduation; 92.2% of analyzed tokens had at least one dump event |
 | ~53% (~45 SOL, ~$30k mcap) | The King-of-the-Hill threshold: maximum visibility, the race inflection |
-| 70 to 90% | Burbit's default listing band for graduation markets: outcome genuinely uncertain (3.9% to 27.3% base rates by window), forcing still expensive (8.6 down to 2.5 SOL), attention maximal |
-| 95%+ | The final stretch: graduation probability climbs toward certainty; forcing cost collapses below 1 SOL, so caps pinch to near zero and markets close listing here |
+| 70 to 90% | Burbit's default listing band for graduation markets: outcome genuinely uncertain (3.9% to 27.3% base rates by window), forcing the outcome still expensive, attention maximal |
+| 95%+ | The final stretch: graduation probability climbs toward certainty and forcing it becomes cheap, so size limits pinch to near zero and no new markets are listed here |
 | Post-complete | Graduation is final; migration executes instantly; the post-graduation phase begins |
 
 ### 2.3 Post-graduation behavior
@@ -118,4 +124,4 @@ From all of the above, every measurable event falls into one of four settlement 
 | **D: aggregate count** | Monotone count over a pinned window and cohort | daily graduations; daily launches; cross-launchpad comparatives |
 | **Rejected** | Vendor labels, off-chain facts, forgeable-at-fee-cost metrics, oracle-priced USD levels | sniper/bundle/insider %, social signals, volume and trade counts as open markets, USD price targets |
 
-Grades A and B settle inside Burbit's program from the curve account and instruction witnesses recorded by permissionless cranks; grade C settles from a snapshot read at the named slot; grade D settles by bonded proposal (`05-MARKETS-AND-SETTLEMENT.md` section 8) because it aggregates beyond single accounts. Every question in the catalog carries its grade, its exact read, its forcing analysis and its offerability class.
+Grades A and B settle inside Burbit's program from the launchpad state account and instruction witnesses recorded by permissionless cranks; grade C settles from a snapshot read at the named slot; grade D settles by bonded proposal (`05-MARKETS-AND-SETTLEMENT.md` section 8) because it aggregates beyond single accounts. Every question in the catalog carries its grade, its exact read, who could force it and at what cost, and its offerability class.
