@@ -114,7 +114,7 @@ This family is a minority product line, sized so the bond exceeds plausible open
 
 ## 9. Listing policy and base rates
 
-Markets are listed where interest is highest and manipulation cheapest to bound: graduation questions at 70% to 90% progress with 5-to-15-minute windows by default. Published milestone base rates (measured continuously by the collector service and replacing simulation-derived priors before mainnet) seed the reference quoter's fair values:
+Markets are listed where interest is highest and manipulation cheapest to bound: graduation questions at 70% to 90% progress with 5-to-15-minute windows by default. Published milestone base rates (measured continuously by the collector service and replacing simulation-derived priors before mainnet) give independent quoters a fair value to price around. They are published numbers, not capital: Burbit funds no quotes:
 
 | Progress reached | Graduates within 5 min | 15 min | 60 min |
 | --- | --- | --- | --- |

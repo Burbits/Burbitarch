@@ -193,6 +193,8 @@ Numbered, testable. Every requirement maps to acceptance tests in section 16.
 - **FR-3** No instruction shall move a seat's funds to any destination other than that seat's owner, except as the documented result of a trade, mint, merge, fee or redemption.
 - **FR-4** A user may register a **session key** scoped to place and cancel orders only, with an expiry. It must be incapable of withdrawing, transferring shares, or registering further keys.
 - **FR-5** The vault's token balance must always equal `Σ free + Σ locked + pairs × $1.00 + accrued fees`.
+- **FR-5a** **Zero protocol capital.** No instruction exists by which the protocol, its admin, its treasury or any privileged account deposits funds into a market, places an order, holds a share position, or acts as counterparty to a trade. A market is created with an empty vault and its first funds come from a trader. This is testable and must be asserted: across every test sequence, the set of share holders and order owners must contain no protocol-controlled address, and market creation must transfer zero collateral.
+- **FR-5b** **No protocol liability.** Every payout is funded exclusively by collateral already locked by the losing side. There is no insurance fund, no backstop, no treasury guarantee and no circumstance in which the protocol owes a user money it does not already hold on that user's behalf.
 
 ### 8.2 Market creation
 

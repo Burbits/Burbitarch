@@ -155,7 +155,7 @@ The reverse also exists. Once people hold shares, a YES holder selling and a NO 
 
 1. **NO buyers** (needs only cash). The dominant source, especially early. Every person betting against the token is supplying the ask side for the people betting for it.
 2. **YES holders selling** (needs shares). Real asks, available once mints have happened.
-3. **Splitters and market makers** (needs $1 per pair). Anyone can call `split`: put up $1.00, receive 1 YES + 1 NO with no counterparty at all, then quote both sides of the book.
+3. **Splitters and independent market makers** (needs $1 per pair, **their own**). Anyone can call `split`: put up $1.00, receive 1 YES + 1 NO with no counterparty at all, then quote both sides of the book. Burbit is never one of these participants; the reference quoter is open-source software that third parties run with their own funds.
 
 ### 5.5 Does the protocol create orders? No.
 
@@ -174,7 +174,9 @@ What the protocol does instead is remove the *need* for a first seller:
 
 ### 5A.1 There is no starting bid or ask. There cannot be.
 
-A new market opens with an **empty book**. No bid, no ask, no price, and Burbit does not seed one. That is not a gap in the design, it is the design: **the price is the thing the market is for**. If Burbit posted a starting price it would be guessing, and it would be taking a position to defend that guess.
+A new market opens with an **empty book and an empty vault**. No bid, no ask, no price, and **no money from Burbit**. That is not a gap in the design, it is the design: **the price is the thing the market exists to find**. Posting a starting price would mean guessing, and then standing behind that guess with real money against traders who know more than you do.
+
+**Nobody has to go first with capital.** Section 5 explains the mechanism: the first YES buyer and the first NO buyer are each other's counterparty, and the vault manufactures their shares out of their own combined dollar.
 
 What a user sees on a brand-new market is therefore:
 
@@ -287,6 +289,26 @@ Note the mids sum to $1.00, as they always must.
 
 Then nothing crosses. There is no price, no trade, and no loss: the orders rest, and at the halt every cent of escrow is returned. A market with only believers and no doubters simply never trades. This is a feature: **Burbit never manufactures a counterparty**, so nobody is ever filled against a price nobody was willing to take.
 
+## 5B. Who funds what: Burbit's capital at risk is zero
+
+Every dollar that exists anywhere in Burbit has a named source. Here is the complete list, with Burbit's contribution to each.
+
+| What needs funding | Who funds it | Burbit's capital at risk |
+| --- | --- | --- |
+| **The $1.00 backing every share pair** | The two traders who minted it, in the exact proportion of the price they agreed | **$0** |
+| **Escrow behind every resting order** | The trader who placed it. Refunded in full if it never fills | **$0** |
+| **Every winner's payout** | The losing side's collateral, locked since the moment the pair was created | **$0** |
+| **Liquidity and quotes on the book** | Traders and independent market makers, using their own money | **$0.** Burbit posts no orders |
+| **Market maker inventory** | That market maker, who buys it by calling `split` with their own funds | **$0** |
+| **A market's account rent** (~0.055 SOL) | Whichever keeper created that market. **Refunded in full when it closes**, plus a creation fee | **$0 at risk.** If Burbit runs a keeper it fronts refundable rent as working capital, and third parties can run keepers instead |
+| **Network fees on user trades** (~$0.001 each) | The fee sponsor service, paid out of fee revenue | An **operating expense**, like paying for servers. Optional: users can pay their own. Nothing at risk in any market |
+
+Read the first four rows again: **the money in a market is entirely traders' money, and it is always exactly enough.** The vault holds $1.00 per pair from the instant that pair is created until it is redeemed or merged. It is not a treasury, a float, a liquidity pool or an insurance fund, and Burbit cannot add to it or take from it. There is no scenario where Burbit needs capital to open a market, to keep one liquid, or to pay a winner.
+
+**What Burbit earns**: a 2% fee from takers, of which 20% is paid straight to the maker they traded against. That is the entire business model. No spread capture, no position taking, no yield on user funds, no loss when a market goes against anyone.
+
+---
+
 ## 6. Maker, taker, market maker: who is who, and who gets paid
 
 ### 6.1 The rule, in one question
@@ -389,9 +411,13 @@ They captured the spread. Add the maker rebate (20% of the taker fees their orde
 
 ### 7.1 What price does a market start at?
 
-**None. A market has no price until its first trade.** Burbit does not set one, and the payout rule ($1 to the winner) does not imply one.
+**None. A market has no price until its first trade, and Burbit puts in no money to create one.**
 
-It is worth killing a common assumption directly: **a market does not start at 50¢ / 50¢.** A 50/50 opening would be a statement that the outcome is a coin flip. For "will this token graduate in 15 minutes" the honest base rate is nearer 5%. If Burbit seeded 50/50, the first informed trader would buy NO at 50¢, worth about 95¢ on the evidence, and pocket the difference from whoever funded the seed. **Seeding a price is just donating money to whoever knows better.** So Burbit does not seed, and instead:
+To be completely unambiguous, because this is the single most important economic property of the design: **Burbit never funds a market, never posts an order, never holds a position, and never acts as anyone's counterparty. Not at launch, not to bootstrap, not ever. The capital required to open a market is zero.** A market is created by writing a question and an empty book into an account. Nothing is deposited into it. The first dollar to enter any market belongs to a trader.
+
+This is not a cost-saving measure, it is a safety property. Any party that posts the opening price is taking a position they can lose. If someone opened every market at 50¢ / 50¢, the first informed trader would buy NO at 50¢ on a market whose honest base rate is nearer 5%, and take roughly 45¢ per share straight out of that party's pocket. Doing that across thousands of markets a day is not a bootstrapping strategy, it is a subscription to being picked off by better-informed traders. **Burbit refuses to be that party, and the design removes the need for one entirely** (section 5: opposite-side buyers mint against each other).
+
+So instead of a posted opening price:
 
 | Stage | What exists |
 | --- | --- |
