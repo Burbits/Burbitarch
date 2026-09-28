@@ -57,7 +57,26 @@ The consequence is that a tier is fixed for the life of one market. Since market
 - **The rebate is capped at 30%**, so the treasury retains at least 70% of every taker fee no matter who is trading. The fee system can never run at a loss.
 - **Zero on exits and plumbing** keeps the core promises untaxed: you can always cash out, merge or redeem without friction.
 
-**Launch-phase note.** At launch every participant is tier 0 by definition, so makers pay 1.00%. That roughly doubles the minimum viable spread for a two-sided quoter (worked in section 3), at exactly the moment the book needs quoting most. The `maker_rate` for tier 0 is a Config value: the recommended operating decision is to run it at **zero during the bootstrap period** and raise it to 1.00% once real volume exists, which is a timelocked parameter change and requires no code change.
+### 2.1 Launch configuration: the tier-0 maker rate starts at zero
+
+At launch **every participant is tier 0 by definition**, because no one has any trailing volume yet. So the tier-0 maker rate is not one rung of a ladder at that point, it is the rate every maker in the venue pays. Charging 1.00% there roughly doubles the minimum viable spread for a two-sided quoter (section 3, example 5) at exactly the moment the book has no quoters at all.
+
+Burbit therefore ships with two documented settings of the same ladder:
+
+| Tier | Trailing 30-day volume | Taker | Maker **at launch** | Maker **at steady state** |
+| --- | --- | --- | --- | --- |
+| 0 | under $250k | 2.00% | **free (waived)** | pays 1.00% |
+| 1 | $250k | 1.80% | pays 0.60% | pays 0.60% |
+| 2 | $1M | 1.60% | pays 0.25% | pays 0.25% |
+| 3 | $5M | 1.45% | free | free |
+| 4 | $20M | 1.30% | earns 15% of the taker fee | earns 15% |
+| 5 | $50M+ | 1.20% | earns 30% of the taker fee | earns 30% |
+
+Only tier 0 differs, and only tier 0 needs to: the higher rungs are unreachable until real volume exists, and by the time anyone reaches them the waiver has served its purpose.
+
+**Recommended trigger for lifting the waiver:** when at least **10 distinct accounts have reached tier 1** on their own 30-day volume. That is the point at which professional makers demonstrably exist, the ladder is doing real work, and the venue no longer needs to subsidise the act of quoting. Lifting it is a `tiers[0].maker_bps` change from 0 to +100 in Config, behind the standard 24-hour timelock, with **no code change and no migration**.
+
+Everything else in this document describes the steady-state schedule.
 
 ## 3. Worked examples
 
@@ -71,7 +90,8 @@ All at tier 0 unless stated.
 
 | Maker tier | Maker fee on the two fills | Net spread kept | Minimum viable spread |
 | --- | --- | --- | --- |
-| 0 | 1.00% of 12¢ + 1.00% of 90¢ = 1.02¢ | **0.98¢** | ~1.01¢ |
+| 0, launch waiver | none | **2.00¢** | ~0 |
+| 0, steady state | 1.00% of 12¢ + 1.00% of 90¢ = 1.02¢ | 0.98¢ | ~1.01¢ |
 | 2 | 0.25% of $1.02 = 0.26¢ | 1.74¢ | ~0.26¢ |
 | 3 | 0 | 2.00¢ | ~0 |
 | 5 | 0, plus 30% of both takers' fees | **above 2.00¢** | negative: quoting pays before the spread |
@@ -90,10 +110,10 @@ Effective take per dollar of traded notional depends on the mix of tiers on each
 
 | Both sides at | Taker pays | Maker pays or earns | **Protocol keeps** |
 | --- | --- | --- | --- |
-| Tier 0 (launch default) | 2.00% | pays 1.00% | **3.00%** |
+| Tier 0, launch waiver in force | 2.00% | free | **2.00%** |
+| Tier 0, steady state | 2.00% | pays 1.00% | **3.00%** |
 | Tier 0 taker, tier 3 maker | 2.00% | free | **2.00%** |
 | Tier 5 both | 1.20% | earns 0.36% (30% of the taker fee) | **0.84%** |
-| Tier 0 with the bootstrap maker waiver | 2.00% | free | **2.00%** |
 
 Illustrative scenarios (not forecasts), at a blended 2.0% of traded notional:
 

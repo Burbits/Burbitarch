@@ -16,7 +16,7 @@ The Burbit Solana program: accounts, data layouts, instructions, errors, events,
 | `pending_admin`, `pending_admin_ts` | Pubkey, i64 | n/a | Two-step, timelocked handover |
 | `treasury` | Pubkey | n/a | Receives swept fees |
 | `paused` | u8 | 0 | 1 = no new markets, no new orders; exits always allowed |
-| `tiers[6]` | { `min_volume_30d`: u64, `taker_bps`: u16, `maker_bps`: i16 } | see below | The fee ladder. `maker_bps` > 0 charges that share of the maker's own notional; `maker_bps` < 0 pays that share of the **taker fee** as a rebate. Defaults: (0, 200, +100), ($250k, 180, +60), ($1M, 160, +25), ($5M, 145, 0), ($20M, 130, −1500), ($50M, 120, −3000). Rebate magnitude is bounded in-program at 3000 (30%) so the treasury always retains at least 70% of a taker fee |
+| `tiers[6]` | { `min_volume_30d`: u64, `taker_bps`: u16, `maker_bps`: i16 } | see below | The fee ladder. `maker_bps` > 0 charges that share of the maker's own notional; `maker_bps` < 0 pays that share of the **taker fee** as a rebate. **Launch defaults: (0, 200, `0`), ($250k, 180, +60), ($1M, 160, +25), ($5M, 145, 0), ($20M, 130, −1500), ($50M, 120, −3000)** (tier 0's maker rate is waived at launch because every trader starts there; steady-state target is +100, raised by timelocked config change once at least 10 accounts reach tier 1: `09-FEES-AND-ECONOMICS.md` section 2.1). Rebate magnitude is bounded in-program at 3000 (30%) so the treasury always retains at least 70% of a taker fee |
 | `auction_fee_numerator` | u16 | 5000 | Auction fills charge each participant this fraction of their own taker rate (50%) |
 | `alpha_bps` | u16 | 1000 | Market size limit as a fraction of the amount the token still needs (10%) |
 | `auction_length_s` | u32 | 60 | |

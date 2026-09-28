@@ -245,6 +245,7 @@ Numbered, testable. Every requirement maps to acceptance tests in section 16.
 - **FR-33a** A trader's fee tier is read from their global `TraderStats` account and stamped into their seat at seat creation, inside a transaction the trader signs. Fills read the tier from the seat only, so tiering must add **zero accounts and zero CPIs** to the settlement path. A tier is fixed for the life of one market.
 - **FR-33b** Each seat accumulates its filled notional, and that volume is rolled into the owner's `TraderStats` when the market is swept or closed. The 30-day window uses daily buckets rotated lazily on write. A missing `TraderStats` account means tier 0.
 - **FR-33c** Each side of a fill is charged on its **own** tier, independently of the other side's tier.
+- **FR-33d** The entire ladder lives in Config and is changeable only behind the timelock. It ships with the **tier-0 maker rate waived to zero**, since every trader is tier 0 at launch; the steady-state value is 1.00%. Changing it must require no code change, no migration and no effect on any existing seat's already-stamped tier.
 - **FR-35** Keeper fees are paid from the market's accrued fees per the Config schedule.
 
 ### 8.8 Off-chain
@@ -598,4 +599,6 @@ Minimum: **1,000 sequences × 300 operations per commit**, 100k-sequence soak ni
 | OD-2 | Fee sponsor per-key velocity cap | Set so a compromised session key cannot burn more than a few dollars of SOL |
 | OD-3 | Whether to ship `tokenize_position` in v1 | No. Ledger shares only; revisit if composability demand appears |
 | OD-4 | Initial α (size limit fraction) | 10%, re-derived once the collector has live data |
+| OD-6 | When to lift the tier-0 maker-fee waiver | When 10+ distinct accounts have reached tier 1 on their own 30-day volume |
+| OD-7 | Fee base symmetry (**still open**) | Fees are charged on each party's own notional, so the two sides of one mint pay different amounts (an 8¢ YES taker pays $0.16 where a 92¢ NO taker pays $1.84 on the same 100-share trade), and the favourite side pays a large share of its own upside. A symmetric base charging on min(p, 1−p) would equalise them. Not changed, pending a decision |
 | OD-5 | Minimum order size | $1.00; revisit after observing real ticket sizes |
