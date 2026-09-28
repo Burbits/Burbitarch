@@ -305,7 +305,7 @@ Every dollar that exists anywhere in Burbit has a named source. Here is the comp
 
 Read the first four rows again: **the money in a market is entirely traders' money, and it is always exactly enough.** The vault holds $1.00 per pair from the instant that pair is created until it is redeemed or merged. It is not a treasury, a float, a liquidity pool or an insurance fund, and Burbit cannot add to it or take from it. There is no scenario where Burbit needs capital to open a market, to keep one liquid, or to pay a winner.
 
-**What Burbit earns**: a 2% fee from takers, of which 20% is paid straight to the maker they traded against. That is the entire business model. No spread capture, no position taking, no yield on user funds, no loss when a market goes against anyone.
+**What Burbit earns**: trading fees from both sides, on a ladder that falls as a trader's own volume rises, with the highest-volume makers paid a share of the taker fee rather than charged. That is the entire business model. No spread capture, no position taking, no yield on user funds, no loss when a market goes against anyone.
 
 ---
 
@@ -321,8 +321,8 @@ Maker and taker are decided **per fill**, by one question:
 | --- | --- | --- |
 | Your order | Was **resting** on the book, waiting | **Arrived and crossed** immediately |
 | What you did | Supplied liquidity (someone could trade because you were there) | Consumed liquidity (you took what was there) |
-| Fee | **None** | **2% of your own notional** |
-| Rebate | **20% of the taker's fee**, credited instantly | None |
+| Fee | **1.00%** of your own fill value at tier 0, falling to free at tier 3 | **2.00%** of your own fill value at tier 0, falling to 1.20% |
+| Rebate | At the top tiers, **15% to 30% of the taker's fee**, credited instantly, instead of paying a fee | None |
 | Execution price | **Your price** is the trade price | You get the maker's price, keeping any improvement |
 | Who you are in the UI | The person who used "Set your odds" | The person who tapped "Quick bet" |
 
@@ -349,30 +349,34 @@ Burbit will never have a privileged market maker, because that party would need 
 
 ### 6.4 Who gets paid a rebate, exactly
 
-You are paid a rebate on a fill **if and only if all three are true**:
+You are paid a rebate on a fill **if and only if all four are true**:
 
 1. Your order was **resting on the book** when the fill happened, and
 2. An **incoming taker order matched against it**, and
-3. That fill **generated a fee** (every continuous-trading fill does).
+3. That fill **generated a fee** (every continuous-trading fill does), and
+4. **Your own trailing 30-day volume puts you at tier 4 or 5.** Below that you pay a maker fee instead (1.00%, 0.60%, 0.25% of your own fill value at tiers 0 to 2) or trade free (tier 3).
 
-The payment is **20% of that fill's taker fee**, credited **to your free balance in the same instruction as the fill**. It is not accrued, not claimed later, not a weekly points program, and not discretionary.
+The payment is **15% or 30% of that fill's taker fee**, credited **to your free balance in the same instruction as the fill**. It is not accrued, not claimed later, not a points programme, and not discretionary. A maker is never both charged and paid on the same fill.
 
 **Worked example.** Alice rests "sell 100 YES at 20¢". Eve arrives and takes it.
 
 ```
-  Eve   (taker):  notional $20.00,  fee 2%  = $0.40   ->  pays $20.40
-  Alice (maker):  fee $0.00,        rebate  = $0.08   ->  receives $20.08
-  Treasury:       $0.40 - $0.08                       =  $0.32
+  Eve (taker, tier 0):  notional $20.00,  fee 2.00%  = $0.40  ->  pays $20.40
+
+  If Alice is tier 0:   maker fee 1.00% of $20.00    = $0.20  ->  receives $19.80
+  If Alice is tier 3:   free                          = $0.00  ->  receives $20.00
+  If Alice is tier 5:   rebate 30% of Eve's $0.40     = $0.12  ->  receives $20.12
 ```
 
-Alice priced her shares at $20.00 and walked away with $20.08 for being there first.
+Same trade, three different outcomes for the maker, decided by nothing but her own measured 30-day volume.
 
 **You do not get a rebate:**
 
 | Situation | Why not |
 | --- | --- |
-| Fills in the **opening auction** | Nobody was resting; everyone submitted into the same sealed batch. Both sides pay 1% instead, and nobody earns a rebate |
-| Fills where **you were the taker** | You consumed liquidity, you pay the fee |
+| **You are below tier 4** | You pay a maker fee, or trade free at tier 3. The rebate is the top of the ladder, not the default |
+| Fills in the **opening auction** | Nobody was resting; everyone submitted into the same sealed batch. Each side pays half their own taker rate instead, and nobody earns a rebate |
+| Fills where **you were the taker** | You consumed liquidity, you pay the taker fee |
 | `split`, `merge`, `transfer`, `redeem`, deposit, withdraw, cancel | No fee is charged, so there is nothing to rebate |
 
 **Guaranteeing maker status**: place a **post-only** order. If it would cross and execute immediately, the program rejects it instead of filling it. Quoters use this so a fast-moving book can never accidentally turn their quote into a taker order.
@@ -393,7 +397,7 @@ They are **independent participants using their own money**. Burbit ships an ope
    Profit: 2¢ per pair, and you hold nothing. Flat, done.
 ```
 
-They captured the spread. Add the maker rebate (20% of the taker fees their orders generated) and that is the business.
+They captured the spread. What it costs or earns them depends on their volume tier: at tier 0 they pay 1.00% of each fill and keep 0.98¢ of that 2¢, at tier 3 they pay nothing and keep the full 2¢, and at tier 5 they also collect 30% of both takers' fees on top. Climbing the ladder is the business.
 
 **Their risk** is that only one side fills. If the YES sells at 12¢ and the NO does not, they are left holding a NO share and are now short the event, directionally exposed. Managing that is the job.
 
@@ -619,7 +623,7 @@ One dollar's journey: wallet ATA → (place order) locked → (mint) pair collat
 
 **Is there leverage or liquidation?** No. Every share is fully paid at purchase. Maximum loss is what you paid. Nothing in one market can touch another.
 
-**What are the fees?** Takers pay 2% of their USDC notional per fill. Makers pay nothing and receive 20% of the taker's fee. Deposits, withdrawals, cancels, splits, merges, transfers and redemptions are free.
+**What are the fees?** Both sides pay, at rates set by their own trailing 30-day volume. Takers pay 2.00% of their own fill value at the base tier, falling to 1.20% at the top. Makers pay 1.00% at the base tier, falling to free, and at the top two tiers are paid 15% or 30% of the taker's fee instead. Deposits, withdrawals, cancels, splits, merges, transfers and redemptions are always free. Full ladder: `09-FEES-AND-ECONOMICS.md`.
 
 **How does the market know the token graduated?** The launchpad's own program keeps a public account per token whose completion flag flips irreversibly. Burbit's settlement instructions take that account as input and read it. The "oracle" is the thing being bet on.
 

@@ -16,8 +16,8 @@ The Burbit Solana program: accounts, data layouts, instructions, errors, events,
 | `pending_admin`, `pending_admin_ts` | Pubkey, i64 | n/a | Two-step, timelocked handover |
 | `treasury` | Pubkey | n/a | Receives swept fees |
 | `paused` | u8 | 0 | 1 = no new markets, no new orders; exits always allowed |
-| `taker_fee_bps` | u16 | 200 | 2% of taker notional |
-| `maker_rebate_bps` | u16 | 2000 | 20% of the taker fee |
+| `tiers[6]` | { `min_volume_30d`: u64, `taker_bps`: u16, `maker_bps`: i16 } | see below | The fee ladder. `maker_bps` > 0 charges that share of the maker's own notional; `maker_bps` < 0 pays that share of the **taker fee** as a rebate. Defaults: (0, 200, +100), ($250k, 180, +60), ($1M, 160, +25), ($5M, 145, 0), ($20M, 130, −1500), ($50M, 120, −3000). Rebate magnitude is bounded in-program at 3000 (30%) so the treasury always retains at least 70% of a taker fee |
+| `auction_fee_numerator` | u16 | 5000 | Auction fills charge each participant this fraction of their own taker rate (50%) |
 | `alpha_bps` | u16 | 1000 | Market size limit as a fraction of the amount the token still needs (10%) |
 | `auction_length_s` | u32 | 60 | |
 | `close_gap_s` | u32 | 300 | Trading stops this long before deadline |
@@ -91,6 +91,8 @@ Admin can **never**: move vault funds, mutate seats or books, set outcomes, or b
 | `usdc_free`, `usdc_locked` | u64 ×2 |
 | `yes_free`, `yes_locked`, `no_free`, `no_locked` | u64 ×4 |
 | `open_orders` | u16 |
+| `tier` | u8 (fee tier stamped from `TraderStats` at seat creation; fixed for this market's life) |
+| `volume_traded` | u64 (this seat's filled notional; rolled into `TraderStats` at sweep) |
 | `flags` | u8 (color, settled, creator-locked-NO) |
 
 Multi-outcome markets extend the seat with a bucket-balance table in an overflow block chained from the seat.
@@ -102,6 +104,14 @@ Multi-outcome markets extend the seat with a bucket-balance table in an overflow
 ### 1.4 SessionKeys
 
 - Seeds: `["session", owner]`. Up to 4 entries of `{ key: Pubkey, expiry_ts: i64, scope: u8 }`. Scope 0 = place/cancel only. A session key may sign `place_order`, `cancel_order`, `cancel_all` for its owner's seat and **nothing else**; `withdraw`, `transfer_shares`, `register_session_key` require the owner wallet.
+
+### 1.4a TraderStats (fee tier)
+
+- Seeds: `["stats", owner]`. One per trader, global across all markets. ~300 bytes, ~0.003 SOL rent, refundable if closed.
+- Fields: `buckets[30]: u64` (rolling daily traded notional), `last_bucket_day: u32`, `volume_30d: u64` (cached sum), `cached_tier: u8`, `bump`.
+- **Written** only when a market is swept or closed, rolling each seat's accumulated volume into the owner's buckets and recomputing the tier. Buckets older than 30 days are zeroed lazily on write.
+- **Read** only when a seat is created, to stamp `seat.tier`. It is therefore never required on the settlement path, which is what makes cross-market volume tiering possible without loading cross-market accounts into a fill.
+- Absent account means tier 0. Creating it is optional and permissionless; the app creates it on a user's first deposit.
 
 ### 1.5 Bond (creator-written rug markets)
 

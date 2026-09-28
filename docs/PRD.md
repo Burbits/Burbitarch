@@ -238,10 +238,13 @@ Numbered, testable. Every requirement maps to acceptance tests in section 16.
 
 ### 8.7 Fees
 
-- **FR-31** Takers pay 2.00% of their USDC notional per fill; makers pay nothing.
-- **FR-32** 20% of each taker fee is credited to the maker's free balance in the same instruction; 80% accrues to the market's fee bucket. Rebate eligibility is exactly: the order was resting on the book, an incoming taker matched it, and the fill charged a fee. Roles are computed **per fill**, so one order may pay a taker fee on the portion that fills on arrival and earn rebates on the remainder once it rests. `POST_ONLY` guarantees maker status by rejecting any order that would fill immediately. No account is ever registered as a maker or market maker; the program has no such concept.
-- **FR-33** Auction fills charge each filled participant 1% of their own notional, with no rebate to either side.
+- **FR-31** Both sides pay at rates set by their own trailing 30-day volume tier. Takers pay `taker_rate(tier)` of their own fill value, from 2.00% (tier 0) to 1.20% (tier 5). Makers at tiers 0 to 2 pay `maker_rate(tier)` of their own fill value (1.00%, 0.60%, 0.25%); tier 3 is free; tiers 4 and 5 receive a rebate instead.
+- **FR-32** A tier-4 or tier-5 maker is credited 15% or 30% of the **taker fee on that fill**, to their free balance in the same instruction. The rebate is never a percentage of the maker's own notional: on a mint the maker's notional can exceed the taker's many times over, so a notional-based rebate could exceed the fee collected. The rebate share is bounded in-program at 30%, so `taker_fee + maker_fee − maker_rebate > 0` at every tier combination and the fee system can never run at a loss. A maker is never both charged and paid on the same fill. Rebate eligibility is exactly: the order was resting on the book, an incoming taker matched it, and the fill charged a fee. Roles are computed **per fill**, so one order may pay a taker fee on the portion that fills on arrival and earn rebates on the remainder once it rests. `POST_ONLY` guarantees maker status by rejecting any order that would fill immediately. No account is ever registered as a maker or market maker; the program has no such concept.
+- **FR-33** Auction fills charge each filled participant half their own taker rate (1.00% at tier 0), with no rebate to either side, since nobody was resting.
 - **FR-34** Deposits, withdrawals, cancels, splits, merges, transfers and redemptions charge no protocol fee.
+- **FR-33a** A trader's fee tier is read from their global `TraderStats` account and stamped into their seat at seat creation, inside a transaction the trader signs. Fills read the tier from the seat only, so tiering must add **zero accounts and zero CPIs** to the settlement path. A tier is fixed for the life of one market.
+- **FR-33b** Each seat accumulates its filled notional, and that volume is rolled into the owner's `TraderStats` when the market is swept or closed. The 30-day window uses daily buckets rotated lazily on write. A missing `TraderStats` account means tier 0.
+- **FR-33c** Each side of a fill is charged on its **own** tier, independently of the other side's tier.
 - **FR-35** Keeper fees are paid from the market's accrued fees per the Config schedule.
 
 ### 8.8 Off-chain
@@ -431,8 +434,8 @@ A complete market, to the cent. Question: "Will $WOOF graduate within 15 minutes
 
 **Continuous.** Alice posts sell 100 YES at 20¢ (maker). Eve takes it (**TRANSFER_YES**).
 
-- Eve pays $20.00 + 2% fee $0.40 = **$20.40**.
-- Alice receives $20.00 + rebate $0.08 (20% of $0.40). Treasury accrues $0.32.
+- Eve pays $20.00 + taker fee 2.00% = $0.40, total **$20.40**.
+- Alice, a tier-0 maker, receives $20.00 less her own maker fee 1.00% = $0.20, netting **$19.80**. Treasury accrues $0.60.
 
 **Graduation at minute 9.** The next instruction halts the market. Carol's $5.00 escrow returns in full.
 
@@ -441,13 +444,13 @@ A complete market, to the cent. Question: "Will $WOOF graduate within 15 minutes
 | Trader | Paid | Received | Net |
 | --- | --- | --- | --- |
 | Eve | 20.40 | 100.00 (100 YES) | **+79.60** |
-| Alice | 9.09 | 20.00 + 0.08 rebate + 50.00 (50 YES) | **+60.99** |
+| Alice | 9.09 | 19.80 net of maker fee + 50.00 (50 YES) | **+60.71** |
 | Dan | 94.94 | 0 | **−94.94** |
 | Bob | 47.47 | 0 | **−47.47** |
 | Carol | 0 | 0 (escrow returned) | **0** |
-| Treasury | n/a | 1.50 auction + 0.40 taker − 0.08 rebate | **+1.82** |
+| Treasury | n/a | 1.50 auction + 0.40 taker + 0.20 maker | **+2.10** |
 
-Check: 79.60 + 60.99 + 1.82 = 142.41 = 94.94 + 47.47. **Zero-sum to the cent.** The vault ends holding exactly the accrued fees; `sweep_fees` then `close_market` empties it and refunds all rent.
+Check: 79.60 + 60.71 + 2.10 = 142.41 = 94.94 + 47.47. **Zero-sum to the cent.** The vault ends holding exactly the accrued fees; `sweep_fees` then `close_market` empties it and refunds all rent.
 
 ---
 

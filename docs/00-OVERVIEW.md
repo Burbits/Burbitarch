@@ -88,9 +88,10 @@ Launchpads (existing, public on-chain accounts)
 | Price = probability | A YES at $0.57 means the market prices the event at 57% |
 | Standard tick | $0.01, refining to $0.001 when the best price is below $0.05 or above $0.95 |
 | Minimum order | $1.00 notional |
-| Taker fee | 2% of the taker's USDC notional |
-| Maker rebate | 20% of the taker fee |
-| Maker fee | none |
+| Taker fee | 2.00% of their own fill value at tier 0, falling to 1.20% at the top volume tier |
+| Maker fee | 1.00% of their own fill value at tier 0, falling to free at tier 3 |
+| Maker rebate | Tiers 4 and 5 are paid instead: 15% and 30% of the taker fee on that fill |
+| Tiering | By each trader's own trailing 30-day volume, measured on-chain (`09-FEES-AND-ECONOMICS.md`) |
 
 ## 5. Glossary
 
