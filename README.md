@@ -8,11 +8,12 @@ Burbit builds no bonding curve and no AMM and is not a launchpad. It is a read-o
 
 ## Documentation
 
-**Start with the [full product walkthrough](docs/WALKTHROUGH.md)**: a plain-language, end-to-end tour of what people trade, where the money sits at every moment, how the YES/NO books work, who creates the first orders, and what happens to every participant when a market resolves. The formal specifications follow it:
+**Start with the [full product walkthrough](docs/WALKTHROUGH.md)**: a plain-language, end-to-end tour of what people trade, where the money sits at every moment, how the YES/NO books work, who creates the first orders, and what happens to every participant when a market resolves. Developers then read the [PRD](docs/PRD.md), the complete build document. The formal specifications follow:
 
 | Area | File |
 | --- | --- |
 | **Product walkthrough (start here)** | [WALKTHROUGH.md](docs/WALKTHROUGH.md) |
+| **Developer PRD (build document)** | [PRD.md](docs/PRD.md) |
 | Overview and glossary | [00-OVERVIEW.md](docs/00-OVERVIEW.md) |
 | System architecture | [01-ARCHITECTURE.md](docs/01-ARCHITECTURE.md) |
 | Core concepts and invariants | [02-CORE-CONCEPTS.md](docs/02-CORE-CONCEPTS.md) |

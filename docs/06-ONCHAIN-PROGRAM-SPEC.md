@@ -24,7 +24,7 @@ The Burbit Solana program: accounts, data layouts, instructions, errors, events,
 | `min_order_usdc` | u64 | 1_000_000 | $1.00 |
 | `create_fee`, `uncross_fee`, `halt_fee`, `resolve_fee`, `sweep_fee_per_seat`, `prune_fee_per_order` | u64 | tuned | Keeper fees, paid from market `fees_accrued` (creation fee deferred until fees exist) |
 | `dust_threshold` | u64 | 10_000 | Sweep amounts below this ($0.01) are forfeited to fees |
-| `usdc_mint` | Pubkey | USDC | |
+| `usdc_mint` | Pubkey | the collateral mint | **Never hardcoded.** Mainnet uses real USDC; local and devnet use a self-minted 6-decimal test token (see `PRD.md` section 14). Promotion between environments is a config value, not a code change |
 | `sol_usd_feed` | Pubkey | Pyth SOL/USD | |
 | `max_price_staleness_slots` | u16 | 30 | |
 | `readers[8]` | { `launchpad_program`: Pubkey, `reader_id`: u8, `kind`: u8 (curve or destination-pool), `enabled`: u8 } | reader 0 = first launchpad's curve; reader 1 = its destination AMM pool (for post-graduation markets) | |
